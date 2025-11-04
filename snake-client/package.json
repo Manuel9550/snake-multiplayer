@@ -1,0 +1,36 @@
+{
+  "name": "asteroids",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npm run dev",
+    "build": "npm run lint && vite build",
+    "lint": "eslint .",
+    "dev": "vite",
+     "test": "vitest"
+  },
+  "dependencies": {
+    "google-protobuf": "^4.0.0",
+    "pixi.js": "^8.8.1",
+    "protobufjs": "^7.5.4",
+    "vite-plugin-commonjs": "^0.10.4",
+    "webpack": "^5.101.3",
+    "webpack-cli": "^6.0.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.21.0",
+    "eslint": "^9.21.0",
+    "eslint-config-prettier": "^10.1.2",
+    "eslint-plugin-prettier": "^5.2.6",
+    "prettier": "^3.5.3",
+    "vite": "^6.2.0",
+    "vite-plugin-require-transform": "^1.0.21",
+    "vitest": "^3.2.4"
+  },
+  "description": "",
+  "main": "vite.config.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

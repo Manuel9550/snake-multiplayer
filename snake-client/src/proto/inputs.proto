@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+option go_package = "/gen/models";
+
+enum Direction {
+    DIRECTION_UNKNOWN = 0;
+    DIRECTION_UP = 1;
+    DIRECTION_DOWN = 2;
+    DIRECTION_LEFT = 3;
+    DIRECTION_RIGHT = 4;
+}
+
+message Input {
+    string PlayerID = 1;
+    Direction InputType = 2;
+}
+
+enum State {
+    STATE_UNKNOWN = 0;
+    STATE_CONNECTING = 1;
+    STATE_CONNECTED = 2;
+    STATE_READY = 3;
+    STATE_PLAYING = 4;
+    STATE_DONE = 5;
+}
+
+message PlayerState {
+    string PlayerID = 1;
+    State State = 2;
+    string Colour = 3;
+}
