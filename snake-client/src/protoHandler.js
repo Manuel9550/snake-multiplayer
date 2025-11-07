@@ -158,7 +158,7 @@ export function DecodeAndValidateEnvelope(binaryData) {
           data: envelope.PlayerStates
         };
       case 3: // MESSAGE_TYPE_SERVER_STATE
-        if (!envelope.SessionState) {
+        if (!envelope.ServerState) {
           throw new Error("MESSAGE_TYPE_SERVER_STATE expected but ServerState field is missing");
         }
         // Validate the SessionStates message

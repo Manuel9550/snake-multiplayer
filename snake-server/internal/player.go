@@ -2,20 +2,12 @@ package internal
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/Manuel9550/snake-multiplayer/snake-server/gen/models"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
-
-// type Direction int
-
-// const (
-// 	Up Direction = iota
-// 	Down
-// 	Left
-// 	Right
-// )
 
 type State int
 
@@ -58,6 +50,7 @@ type Player struct {
 	State     models.State
 	BodyQueue Queue
 	Length    int
+	connMutex sync.Mutex
 }
 
 func NewPlayer(newConnection *websocket.Conn) *Player {
@@ -73,6 +66,7 @@ func NewPlayer(newConnection *websocket.Conn) *Player {
 		BodyQueue: bodyQueue,
 		Length:    1,
 		State:     models.State_STATE_CONNECTING,
+		connMutex: sync.Mutex{},
 	}
 }
 
@@ -141,4 +135,12 @@ func (p *Player) UpdateDirection(newDirection models.Direction) {
 
 func (p *Player) UpdateState(newState models.State) {
 	p.State = newState
+}
+
+func (p *Player) SendMessage(data []byte) {
+	p.connMutex.Lock()
+	defer p.connMutex.Unlock()
+	if err := p.conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
+		fmt.Printf("Error writing message for player ID %s:%s\n", p.ID, err.Error())
+	}
 }
