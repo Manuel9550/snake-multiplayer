@@ -14,3 +14,8 @@ message ServerStateMessage {
     string SessionID = 1;
     ServerState ServerState = 2;
 }
+
+message GameOver {
+    string SessionID = 1;
+    string WinningPlayerID = 2;
+}

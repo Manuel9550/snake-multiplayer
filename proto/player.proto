@@ -13,6 +13,7 @@ enum MessageType {
     MESSAGE_TYPE_SERVER_STATE = 3;
     MESSAGE_TYPE_PLAYER = 4;
     MESSAGE_TYPE_GAME_DATA = 5;
+    MESSAGE_TYPE_GAME_OVER = 6;
 }
 
 message Welcome {
@@ -46,5 +47,6 @@ message Envelope {
     ServerStateMessage ServerState = 4;
     Player Data = 5;
     GameData GameState = 6;
+    GameOver GameOver = 7;
   }
 }

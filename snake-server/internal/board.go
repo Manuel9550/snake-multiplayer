@@ -14,14 +14,38 @@ type Board struct {
 	Entities map[EntityLocation]Entity
 }
 
-func (b *Board) Initialize(numPlayers int) {
+func (b *Board) Initialize(players []*Player) {
 	b.Tiles = make([][]*Entity, numColumns)
 	for i := range b.Tiles {
 		b.Tiles[i] = make([]*Entity, numRows)
 	}
 
 	b.Entities = make(map[EntityLocation]Entity)
-	for i := 0; i < numPlayers+1; i++ {
+
+	for playerNumber, player := range players {
+		switch playerNumber {
+		case 0:
+			player.X = 1
+			player.Y = 1
+			player.Direction = models.Direction_DIRECTION_RIGHT
+		case 1:
+			player.X = numColumns - 2
+			player.Y = 1
+			player.Direction = models.Direction_DIRECTION_DOWN
+		case 2:
+			player.X = numColumns - 2
+			player.Y = numRows - 2
+			player.Direction = models.Direction_DIRECTION_LEFT
+		case 3:
+			player.X = 1
+			player.Y = numRows - 2
+			player.Direction = models.Direction_DIRECTION_UP
+		}
+		player.BodyQueue.Enqueue(EntityLocation{X: player.X, Y: player.Y})
+		b.Entities[EntityLocation{X: player.X, Y: player.Y}] = NewEntity(player.ID, models.EntityType_ENTITY_TYPE_BODY)
+	}
+
+	for i := 0; i < len(players)+1; i++ {
 		b.AddNewPoint()
 	}
 	for i := 0; i < 10; i++ {
@@ -47,7 +71,7 @@ func (b *Board) Update(player *Player) {
 			delete(b.Entities, newLocation)
 			b.AddNewPoint()
 		} else {
-			player.State = models.State_STATE_DONE
+			b.PlayerFinished(player)
 		}
 	}
 
@@ -59,6 +83,14 @@ func (b *Board) Update(player *Player) {
 			oldPiece := player.BodyQueue.Dequeue()
 			delete(b.Entities, *oldPiece)
 		}
+	}
+}
+
+func (b *Board) PlayerFinished(player *Player) {
+	player.State = models.State_STATE_DONE
+	for !player.BodyQueue.IsEmpty() {
+		oldPiece := player.BodyQueue.Dequeue()
+		delete(b.Entities, *oldPiece)
 	}
 }
 

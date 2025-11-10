@@ -71,6 +71,9 @@ func NewPlayer(newConnection *websocket.Conn) *Player {
 }
 
 func (p *Player) ReadPlayerMessages(inputChannel chan []byte) error {
+	if p.conn == nil {
+		return nil
+	}
 	for {
 		messageType, m, err := p.conn.ReadMessage()
 		if err != nil {
@@ -92,6 +95,9 @@ func (p *Player) ReadPlayerMessages(inputChannel chan []byte) error {
 }
 
 func (p *Player) ShutDownPlayer() error {
+	if p.conn == nil {
+		return nil
+	}
 	return p.conn.Close()
 }
 
@@ -140,6 +146,9 @@ func (p *Player) UpdateState(newState models.State) {
 func (p *Player) SendMessage(data []byte) {
 	p.connMutex.Lock()
 	defer p.connMutex.Unlock()
+	if p.conn == nil {
+		return
+	}
 	if err := p.conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
 		fmt.Printf("Error writing message for player ID %s:%s\n", p.ID, err.Error())
 	}

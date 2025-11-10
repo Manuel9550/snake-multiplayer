@@ -30,6 +30,7 @@ const (
 	MessageType_MESSAGE_TYPE_SERVER_STATE  MessageType = 3
 	MessageType_MESSAGE_TYPE_PLAYER        MessageType = 4
 	MessageType_MESSAGE_TYPE_GAME_DATA     MessageType = 5
+	MessageType_MESSAGE_TYPE_GAME_OVER     MessageType = 6
 )
 
 // Enum value maps for MessageType.
@@ -41,6 +42,7 @@ var (
 		3: "MESSAGE_TYPE_SERVER_STATE",
 		4: "MESSAGE_TYPE_PLAYER",
 		5: "MESSAGE_TYPE_GAME_DATA",
+		6: "MESSAGE_TYPE_GAME_OVER",
 	}
 	MessageType_value = map[string]int32{
 		"MESSAGE_TYPE_UNKNOWN":       0,
@@ -49,6 +51,7 @@ var (
 		"MESSAGE_TYPE_SERVER_STATE":  3,
 		"MESSAGE_TYPE_PLAYER":        4,
 		"MESSAGE_TYPE_GAME_DATA":     5,
+		"MESSAGE_TYPE_GAME_OVER":     6,
 	}
 )
 
@@ -321,6 +324,7 @@ type Envelope struct {
 	//	*Envelope_ServerState
 	//	*Envelope_Data
 	//	*Envelope_GameState
+	//	*Envelope_GameOver
 	MessageData   isEnvelope_MessageData `protobuf_oneof:"MessageData"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -415,6 +419,15 @@ func (x *Envelope) GetGameState() *GameData {
 	return nil
 }
 
+func (x *Envelope) GetGameOver() *GameOver {
+	if x != nil {
+		if x, ok := x.MessageData.(*Envelope_GameOver); ok {
+			return x.GameOver
+		}
+	}
+	return nil
+}
+
 type isEnvelope_MessageData interface {
 	isEnvelope_MessageData()
 }
@@ -439,6 +452,10 @@ type Envelope_GameState struct {
 	GameState *GameData `protobuf:"bytes,6,opt,name=GameState,proto3,oneof"`
 }
 
+type Envelope_GameOver struct {
+	GameOver *GameOver `protobuf:"bytes,7,opt,name=GameOver,proto3,oneof"`
+}
+
 func (*Envelope_PlayerData) isEnvelope_MessageData() {}
 
 func (*Envelope_PlayerStates) isEnvelope_MessageData() {}
@@ -448,6 +465,8 @@ func (*Envelope_ServerState) isEnvelope_MessageData() {}
 func (*Envelope_Data) isEnvelope_MessageData() {}
 
 func (*Envelope_GameState) isEnvelope_MessageData() {}
+
+func (*Envelope_GameOver) isEnvelope_MessageData() {}
 
 var File_player_proto protoreflect.FileDescriptor
 
@@ -475,7 +494,7 @@ const file_player_proto_rawDesc = "" +
 	"PlayerData\x12'\n" +
 	"\n" +
 	"EntityData\x18\x02 \x03(\v2\a.EntityR\n" +
-	"EntityData\"\x9f\x02\n" +
+	"EntityData\"\xc8\x02\n" +
 	"\bEnvelope\x12 \n" +
 	"\x04Type\x18\x01 \x01(\x0e2\f.MessageTypeR\x04Type\x12*\n" +
 	"\n" +
@@ -484,15 +503,17 @@ const file_player_proto_rawDesc = "" +
 	"\fPlayerStates\x18\x03 \x01(\v2\r.PlayerStatesH\x00R\fPlayerStates\x127\n" +
 	"\vServerState\x18\x04 \x01(\v2\x13.ServerStateMessageH\x00R\vServerState\x12\x1d\n" +
 	"\x04Data\x18\x05 \x01(\v2\a.PlayerH\x00R\x04Data\x12)\n" +
-	"\tGameState\x18\x06 \x01(\v2\t.GameDataH\x00R\tGameStateB\r\n" +
-	"\vMessageData*\xb5\x01\n" +
+	"\tGameState\x18\x06 \x01(\v2\t.GameDataH\x00R\tGameState\x12'\n" +
+	"\bGameOver\x18\a \x01(\v2\t.GameOverH\x00R\bGameOverB\r\n" +
+	"\vMessageData*\xd1\x01\n" +
 	"\vMessageType\x12\x18\n" +
 	"\x14MESSAGE_TYPE_UNKNOWN\x10\x00\x12\x18\n" +
 	"\x14MESSAGE_TYPE_WELCOME\x10\x01\x12\x1e\n" +
 	"\x1aMESSAGE_TYPE_PLAYER_STATES\x10\x02\x12\x1d\n" +
 	"\x19MESSAGE_TYPE_SERVER_STATE\x10\x03\x12\x17\n" +
 	"\x13MESSAGE_TYPE_PLAYER\x10\x04\x12\x1a\n" +
-	"\x16MESSAGE_TYPE_GAME_DATA\x10\x05B\rZ\v/gen/modelsb\x06proto3"
+	"\x16MESSAGE_TYPE_GAME_DATA\x10\x05\x12\x1a\n" +
+	"\x16MESSAGE_TYPE_GAME_OVER\x10\x06B\rZ\v/gen/modelsb\x06proto3"
 
 var (
 	file_player_proto_rawDescOnce sync.Once
@@ -520,6 +541,7 @@ var file_player_proto_goTypes = []any{
 	(Direction)(0),             // 8: Direction
 	(*Entity)(nil),             // 9: Entity
 	(*ServerStateMessage)(nil), // 10: ServerStateMessage
+	(*GameOver)(nil),           // 11: GameOver
 }
 var file_player_proto_depIdxs = []int32{
 	6,  // 0: PlayerStates.PlayerStates:type_name -> PlayerState
@@ -534,11 +556,12 @@ var file_player_proto_depIdxs = []int32{
 	10, // 9: Envelope.ServerState:type_name -> ServerStateMessage
 	3,  // 10: Envelope.Data:type_name -> Player
 	4,  // 11: Envelope.GameState:type_name -> GameData
-	12, // [12:12] is the sub-list for method output_type
-	12, // [12:12] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	11, // 12: Envelope.GameOver:type_name -> GameOver
+	13, // [13:13] is the sub-list for method output_type
+	13, // [13:13] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_player_proto_init() }
@@ -555,6 +578,7 @@ func file_player_proto_init() {
 		(*Envelope_ServerState)(nil),
 		(*Envelope_Data)(nil),
 		(*Envelope_GameState)(nil),
+		(*Envelope_GameOver)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

@@ -128,6 +128,58 @@ func (x *ServerStateMessage) GetServerState() ServerState {
 	return ServerState_SERVER_STATE_UNKNOWN
 }
 
+type GameOver struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	SessionID       string                 `protobuf:"bytes,1,opt,name=SessionID,proto3" json:"SessionID,omitempty"`
+	WinningPlayerID string                 `protobuf:"bytes,2,opt,name=WinningPlayerID,proto3" json:"WinningPlayerID,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *GameOver) Reset() {
+	*x = GameOver{}
+	mi := &file_server_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GameOver) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GameOver) ProtoMessage() {}
+
+func (x *GameOver) ProtoReflect() protoreflect.Message {
+	mi := &file_server_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GameOver.ProtoReflect.Descriptor instead.
+func (*GameOver) Descriptor() ([]byte, []int) {
+	return file_server_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *GameOver) GetSessionID() string {
+	if x != nil {
+		return x.SessionID
+	}
+	return ""
+}
+
+func (x *GameOver) GetWinningPlayerID() string {
+	if x != nil {
+		return x.WinningPlayerID
+	}
+	return ""
+}
+
 var File_server_proto protoreflect.FileDescriptor
 
 const file_server_proto_rawDesc = "" +
@@ -135,7 +187,10 @@ const file_server_proto_rawDesc = "" +
 	"\fserver.proto\"b\n" +
 	"\x12ServerStateMessage\x12\x1c\n" +
 	"\tSessionID\x18\x01 \x01(\tR\tSessionID\x12.\n" +
-	"\vServerState\x18\x02 \x01(\x0e2\f.ServerStateR\vServerState*\x8f\x01\n" +
+	"\vServerState\x18\x02 \x01(\x0e2\f.ServerStateR\vServerState\"R\n" +
+	"\bGameOver\x12\x1c\n" +
+	"\tSessionID\x18\x01 \x01(\tR\tSessionID\x12(\n" +
+	"\x0fWinningPlayerID\x18\x02 \x01(\tR\x0fWinningPlayerID*\x8f\x01\n" +
 	"\vServerState\x12\x18\n" +
 	"\x14SERVER_STATE_UNKNOWN\x10\x00\x12\x1d\n" +
 	"\x19SERVER_STATE_INITIALIZING\x10\x01\x12\x16\n" +
@@ -156,10 +211,11 @@ func file_server_proto_rawDescGZIP() []byte {
 }
 
 var file_server_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_server_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_server_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_server_proto_goTypes = []any{
 	(ServerState)(0),           // 0: ServerState
 	(*ServerStateMessage)(nil), // 1: ServerStateMessage
+	(*GameOver)(nil),           // 2: GameOver
 }
 var file_server_proto_depIdxs = []int32{
 	0, // 0: ServerStateMessage.ServerState:type_name -> ServerState
@@ -181,7 +237,7 @@ func file_server_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_server_proto_rawDesc), len(file_server_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

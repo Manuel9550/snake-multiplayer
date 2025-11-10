@@ -56,8 +56,14 @@ export class Session {
             return;
         }
         
-        // Depending on the state, we only care about certain message 
-        // type
+        // The server changing the state has priority, no matter the state of the session
+        if (result.type === "MESSAGE_TYPE_SERVER_STATE") {
+            console.log("SERVER SENT STATE")
+            const serverState = result.data;
+            this.updateServerState(serverState);
+        }
+        
+        // Depending on the state, we only care about certain message types
         switch (this.state) {
             case SessionState.CONNECTING:
                 // Only care about Welcome and PlayerStates messages
@@ -75,15 +81,11 @@ export class Session {
                     const playerStates = result.data;
                     this.updatePlayerStates(playerStates);
                 }
-                if (result.type === "MESSAGE_TYPE_SERVER_STATE") {
-                    const serverState = result.data;
-                    this.updateServerState(serverState);
-                }
                 break;
             case SessionState.PLAYING:
                 if (result.type === "MESSAGE_TYPE_GAME_DATA") {
-                    const playersData = result.data.PlayerData;
-                    this.updateGameData(playersData);
+                    const gameData = result.data;
+                    this.updateGameData(gameData);
                 }
                 break;
             }
@@ -118,18 +120,20 @@ export class Session {
     }
 
     updateServerState(serverState) {
-       switch(serverState) {
+       switch(serverState.ServerState) {
         case 3:
-            this.state = PLAYING
+            this.state = SessionState.PLAYING
+            console.log("SERVER IS NOW PLAYING")
             break;
         case 4:
-            this.state = DONE
+            console.log("SERVER IS NOW DONE")
+            this.state = SessionState.DONE
             break;
         }
     }
 
-    updateGameData(playersData) {
-        playersData.forEach(playerData => {
+    updateGameData(gameData) {
+        gameData.PlayerData.forEach(playerData => {
             if (this.players.has(playerData.PlayerID)) {
                 // Update existing player
                 const existingPlayer = this.players.get(playerData.PlayerID);
@@ -147,14 +151,14 @@ export class Session {
             }
         });
         
-        const entitiesData = result.data.EntityData;
+        const entitiesData = gameData.EntityData;
         // The server sends all active entities: we may need to prune entities that are no longer active
         let activeMap = new Map()
         console.log("server sent " + entitiesData.length + " entities")
         console.log(entitiesData)
         entitiesData.forEach(entityData => {
             activeMap.set(entityData.ID,true);
-            if (entities.has(entityData.ID)) {
+            if (this.entities.has(entityData.ID)) {
                 // Update existing entity
                 const existingEntity = this.entities.get(entityData.ID);
                 existingEntity.x = entityData.Body.X;
