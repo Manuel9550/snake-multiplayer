@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+option go_package = "/gen/models";
+
+import "game.proto";
+
+enum SessionState {
+    SESSION_STATE_UNKNOWN = 0;
+    SESSION_STATE_INITIALIZING = 1;
+    SESSION_STATE_SETUP = 2;
+    SESSION_STATE_RUNNING = 3;
+    SESSION_STATE_DONE = 4;
+}
+
+enum MessageType {
+    MESSAGE_TYPE_UNKNOWN = 0;
+    MESSAGE_TYPE_WELCOME = 1;
+    MESSAGE_TYPE_SESSION_DATA = 2;
+}
+
+message SessionData {
+    string SessionID = 1;
+    SessionState State = 2;
+    GameData GameData = 3;
+    string WinningPlayer = 4;
+}
+
+message Envelope {
+    MessageType Type = 1;
+    oneof MessageData {
+        Player Welcome = 2;
+        SessionData SessionData = 3;
+  }
+}
+
+
+
+

@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"container/list"
 	"fmt"
 	"sync"
 
@@ -11,29 +12,67 @@ import (
 
 type State int
 
-type Queue []EntityLocation
+type Queue struct {
+	data *list.List
+}
 
-func (q *Queue) Enqueue(item EntityLocation) {
-	*q = append(*q, item)
+func NewQueue() Queue {
+	return Queue{
+		data: list.New(),
+	}
+}
+
+func (q *Queue) Enqueue(item Location) {
+	if q.data == nil {
+		q.data = list.New()
+	}
+	q.data.PushBack(item)
 }
 
 func (q *Queue) IsEmpty() bool {
-	return len(*q) == 0
+	if q.data == nil {
+		return true
+	}
+	return q.data.Len() == 0
 }
 
-func (q *Queue) Dequeue() *EntityLocation {
+func (q *Queue) Len() int {
+	if q.data == nil {
+		return 0
+	}
+	return q.data.Len()
+}
+
+func (q *Queue) Get(index int) *Location {
+	if q.data == nil || index < 0 || index >= q.data.Len() {
+		return nil
+	}
+	i := 0
+	for e := q.data.Front(); e != nil; e = e.Next() {
+		if i == index {
+			loc := e.Value.(Location)
+			return &loc
+		}
+		i++
+	}
+	return nil
+}
+
+func (q *Queue) Dequeue() *Location {
 	if q.IsEmpty() {
 		return nil
 	}
-	item := (*q)[0]
-	*q = (*q)[1:]
-	return &item
+	front := q.data.Front()
+	q.data.Remove(front)
+	loc := front.Value.(Location)
+	return &loc
 }
 
 func (q *Queue) ToProto() []*models.BodyField {
 	returnValues := []*models.BodyField{}
-	if q != nil {
-		for _, bodyField := range *q {
+	if q != nil && q.data != nil {
+		for e := q.data.Front(); e != nil; e = e.Next() {
+			bodyField := e.Value.(Location)
 			returnValues = append(returnValues, &models.BodyField{X: int32(bodyField.X), Y: int32(bodyField.Y)})
 		}
 	}
@@ -47,7 +86,7 @@ type Player struct {
 	Direction models.Direction
 	X         int
 	Y         int
-	State     models.State
+	State     models.PlayerState
 	BodyQueue Queue
 	Length    int
 	connMutex sync.Mutex
@@ -55,7 +94,7 @@ type Player struct {
 
 func NewPlayer(newConnection *websocket.Conn) *Player {
 	bodyQueue := Queue{}
-	bodyQueue.Enqueue(EntityLocation{X: 0, Y: 0})
+	bodyQueue.Enqueue(Location{X: 0, Y: 0})
 	return &Player{
 		ID:        uuid.New().String(),
 		conn:      newConnection,
@@ -65,7 +104,7 @@ func NewPlayer(newConnection *websocket.Conn) *Player {
 		Y:         0,
 		BodyQueue: bodyQueue,
 		Length:    1,
-		State:     models.State_STATE_CONNECTING,
+		State:     models.PlayerState_STATE_CONNECTING,
 		connMutex: sync.Mutex{},
 	}
 }
@@ -111,6 +150,7 @@ func (p *Player) ToPlayerProtoMessage() *models.Player {
 		Body:            p.BodyQueue.ToProto(),
 		PlayerDirection: p.Direction,
 		Colour:          p.Colour,
+		State:           p.State,
 	}
 }
 
@@ -139,7 +179,7 @@ func (p *Player) UpdateDirection(newDirection models.Direction) {
 	p.Direction = newDirection
 }
 
-func (p *Player) UpdateState(newState models.State) {
+func (p *Player) UpdateState(newState models.PlayerState) {
 	p.State = newState
 }
 

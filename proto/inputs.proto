@@ -15,17 +15,6 @@ message Input {
     Direction InputType = 2;
 }
 
-enum State {
-    STATE_UNKNOWN = 0;
-    STATE_CONNECTING = 1;
-    STATE_CONNECTED = 2;
-    STATE_READY = 3;
-    STATE_PLAYING = 4;
-    STATE_DONE = 5;
-}
-
-message PlayerState {
+message ReadyUp {
     string PlayerID = 1;
-    State State = 2;
-    string Colour = 3;
 }

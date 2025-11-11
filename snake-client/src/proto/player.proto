@@ -9,11 +9,7 @@ import "server.proto";
 enum MessageType {
     MESSAGE_TYPE_UNKNOWN = 0;
     MESSAGE_TYPE_WELCOME = 1;
-    MESSAGE_TYPE_PLAYER_STATES = 2;
-    MESSAGE_TYPE_SERVER_STATE = 3;
-    MESSAGE_TYPE_PLAYER = 4;
-    MESSAGE_TYPE_GAME_DATA = 5;
-    MESSAGE_TYPE_GAME_OVER = 6;
+    MESSAGE_TYPE_SESSION_DATA = 2;
 }
 
 message Welcome {

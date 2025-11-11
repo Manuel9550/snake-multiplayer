@@ -76,64 +76,6 @@ func (Direction) EnumDescriptor() ([]byte, []int) {
 	return file_inputs_proto_rawDescGZIP(), []int{0}
 }
 
-type State int32
-
-const (
-	State_STATE_UNKNOWN    State = 0
-	State_STATE_CONNECTING State = 1
-	State_STATE_CONNECTED  State = 2
-	State_STATE_READY      State = 3
-	State_STATE_PLAYING    State = 4
-	State_STATE_DONE       State = 5
-)
-
-// Enum value maps for State.
-var (
-	State_name = map[int32]string{
-		0: "STATE_UNKNOWN",
-		1: "STATE_CONNECTING",
-		2: "STATE_CONNECTED",
-		3: "STATE_READY",
-		4: "STATE_PLAYING",
-		5: "STATE_DONE",
-	}
-	State_value = map[string]int32{
-		"STATE_UNKNOWN":    0,
-		"STATE_CONNECTING": 1,
-		"STATE_CONNECTED":  2,
-		"STATE_READY":      3,
-		"STATE_PLAYING":    4,
-		"STATE_DONE":       5,
-	}
-)
-
-func (x State) Enum() *State {
-	p := new(State)
-	*p = x
-	return p
-}
-
-func (x State) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (State) Descriptor() protoreflect.EnumDescriptor {
-	return file_inputs_proto_enumTypes[1].Descriptor()
-}
-
-func (State) Type() protoreflect.EnumType {
-	return &file_inputs_proto_enumTypes[1]
-}
-
-func (x State) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use State.Descriptor instead.
-func (State) EnumDescriptor() ([]byte, []int) {
-	return file_inputs_proto_rawDescGZIP(), []int{1}
-}
-
 type Input struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PlayerID      string                 `protobuf:"bytes,1,opt,name=PlayerID,proto3" json:"PlayerID,omitempty"`
@@ -186,29 +128,27 @@ func (x *Input) GetInputType() Direction {
 	return Direction_DIRECTION_UNKNOWN
 }
 
-type PlayerState struct {
+type ReadyUp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PlayerID      string                 `protobuf:"bytes,1,opt,name=PlayerID,proto3" json:"PlayerID,omitempty"`
-	State         State                  `protobuf:"varint,2,opt,name=State,proto3,enum=State" json:"State,omitempty"`
-	Colour        string                 `protobuf:"bytes,3,opt,name=Colour,proto3" json:"Colour,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *PlayerState) Reset() {
-	*x = PlayerState{}
+func (x *ReadyUp) Reset() {
+	*x = ReadyUp{}
 	mi := &file_inputs_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PlayerState) String() string {
+func (x *ReadyUp) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PlayerState) ProtoMessage() {}
+func (*ReadyUp) ProtoMessage() {}
 
-func (x *PlayerState) ProtoReflect() protoreflect.Message {
+func (x *ReadyUp) ProtoReflect() protoreflect.Message {
 	mi := &file_inputs_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -220,28 +160,14 @@ func (x *PlayerState) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PlayerState.ProtoReflect.Descriptor instead.
-func (*PlayerState) Descriptor() ([]byte, []int) {
+// Deprecated: Use ReadyUp.ProtoReflect.Descriptor instead.
+func (*ReadyUp) Descriptor() ([]byte, []int) {
 	return file_inputs_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *PlayerState) GetPlayerID() string {
+func (x *ReadyUp) GetPlayerID() string {
 	if x != nil {
 		return x.PlayerID
-	}
-	return ""
-}
-
-func (x *PlayerState) GetState() State {
-	if x != nil {
-		return x.State
-	}
-	return State_STATE_UNKNOWN
-}
-
-func (x *PlayerState) GetColour() string {
-	if x != nil {
-		return x.Colour
 	}
 	return ""
 }
@@ -254,25 +180,15 @@ const file_inputs_proto_rawDesc = "" +
 	"\x05Input\x12\x1a\n" +
 	"\bPlayerID\x18\x01 \x01(\tR\bPlayerID\x12(\n" +
 	"\tInputType\x18\x02 \x01(\x0e2\n" +
-	".DirectionR\tInputType\"_\n" +
-	"\vPlayerState\x12\x1a\n" +
-	"\bPlayerID\x18\x01 \x01(\tR\bPlayerID\x12\x1c\n" +
-	"\x05State\x18\x02 \x01(\x0e2\x06.StateR\x05State\x12\x16\n" +
-	"\x06Colour\x18\x03 \x01(\tR\x06Colour*q\n" +
+	".DirectionR\tInputType\"%\n" +
+	"\aReadyUp\x12\x1a\n" +
+	"\bPlayerID\x18\x01 \x01(\tR\bPlayerID*q\n" +
 	"\tDirection\x12\x15\n" +
 	"\x11DIRECTION_UNKNOWN\x10\x00\x12\x10\n" +
 	"\fDIRECTION_UP\x10\x01\x12\x12\n" +
 	"\x0eDIRECTION_DOWN\x10\x02\x12\x12\n" +
 	"\x0eDIRECTION_LEFT\x10\x03\x12\x13\n" +
-	"\x0fDIRECTION_RIGHT\x10\x04*y\n" +
-	"\x05State\x12\x11\n" +
-	"\rSTATE_UNKNOWN\x10\x00\x12\x14\n" +
-	"\x10STATE_CONNECTING\x10\x01\x12\x13\n" +
-	"\x0fSTATE_CONNECTED\x10\x02\x12\x0f\n" +
-	"\vSTATE_READY\x10\x03\x12\x11\n" +
-	"\rSTATE_PLAYING\x10\x04\x12\x0e\n" +
-	"\n" +
-	"STATE_DONE\x10\x05B\rZ\v/gen/modelsb\x06proto3"
+	"\x0fDIRECTION_RIGHT\x10\x04B\rZ\v/gen/modelsb\x06proto3"
 
 var (
 	file_inputs_proto_rawDescOnce sync.Once
@@ -286,22 +202,20 @@ func file_inputs_proto_rawDescGZIP() []byte {
 	return file_inputs_proto_rawDescData
 }
 
-var file_inputs_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_inputs_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_inputs_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_inputs_proto_goTypes = []any{
-	(Direction)(0),      // 0: Direction
-	(State)(0),          // 1: State
-	(*Input)(nil),       // 2: Input
-	(*PlayerState)(nil), // 3: PlayerState
+	(Direction)(0),  // 0: Direction
+	(*Input)(nil),   // 1: Input
+	(*ReadyUp)(nil), // 2: ReadyUp
 }
 var file_inputs_proto_depIdxs = []int32{
 	0, // 0: Input.InputType:type_name -> Direction
-	1, // 1: PlayerState.State:type_name -> State
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	1, // [1:1] is the sub-list for method output_type
+	1, // [1:1] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_inputs_proto_init() }
@@ -314,7 +228,7 @@ func file_inputs_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_inputs_proto_rawDesc), len(file_inputs_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      1,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,

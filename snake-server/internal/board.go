@@ -11,7 +11,7 @@ const numColumns = 20
 
 type Board struct {
 	Tiles    [][]*Entity
-	Entities map[EntityLocation]Entity
+	Entities map[Location]Entity
 }
 
 func (b *Board) Initialize(players []*Player) {
@@ -20,7 +20,7 @@ func (b *Board) Initialize(players []*Player) {
 		b.Tiles[i] = make([]*Entity, numRows)
 	}
 
-	b.Entities = make(map[EntityLocation]Entity)
+	b.Entities = make(map[Location]Entity)
 
 	for playerNumber, player := range players {
 		switch playerNumber {
@@ -41,8 +41,9 @@ func (b *Board) Initialize(players []*Player) {
 			player.Y = numRows - 2
 			player.Direction = models.Direction_DIRECTION_UP
 		}
-		player.BodyQueue.Enqueue(EntityLocation{X: player.X, Y: player.Y})
-		b.Entities[EntityLocation{X: player.X, Y: player.Y}] = NewEntity(player.ID, models.EntityType_ENTITY_TYPE_BODY)
+		location := Location{X: player.X, Y: player.Y}
+		player.BodyQueue.Enqueue(location)
+		b.Entities[location] = NewEntity(player.ID, models.EntityType_ENTITY_TYPE_BODY, location)
 	}
 
 	for i := 0; i < len(players)+1; i++ {
@@ -54,7 +55,7 @@ func (b *Board) Initialize(players []*Player) {
 }
 
 func (b *Board) Update(player *Player) {
-	if player.State == models.State_STATE_DONE {
+	if player.State == models.PlayerState_STATE_DONE {
 		return
 	}
 
@@ -75,11 +76,12 @@ func (b *Board) Update(player *Player) {
 		}
 	}
 
-	if player.State != models.State_STATE_DONE {
-		player.BodyQueue.Enqueue(EntityLocation{X: player.X, Y: player.Y})
-		b.Entities[newLocation] = NewEntity(player.ID, models.EntityType_ENTITY_TYPE_BODY)
+	if player.State != models.PlayerState_STATE_DONE {
+		location := Location{X: player.X, Y: player.Y}
+		player.BodyQueue.Enqueue(location)
+		b.Entities[newLocation] = NewEntity(player.ID, models.EntityType_ENTITY_TYPE_BODY, location)
 
-		if len(player.BodyQueue) > player.Length {
+		if player.BodyQueue.Len() > player.Length {
 			oldPiece := player.BodyQueue.Dequeue()
 			delete(b.Entities, *oldPiece)
 		}
@@ -87,7 +89,7 @@ func (b *Board) Update(player *Player) {
 }
 
 func (b *Board) PlayerFinished(player *Player) {
-	player.State = models.State_STATE_DONE
+	player.State = models.PlayerState_STATE_DONE
 	for !player.BodyQueue.IsEmpty() {
 		oldPiece := player.BodyQueue.Dequeue()
 		delete(b.Entities, *oldPiece)
@@ -95,7 +97,7 @@ func (b *Board) PlayerFinished(player *Player) {
 }
 
 // Remember, on the front end, UP is -Y, and DOWN is +Y
-func (b *Board) NewLocation(player *Player) EntityLocation {
+func (b *Board) NewLocation(player *Player) Location {
 	locationX, locationY := player.X, player.Y
 	switch player.Direction {
 	case models.Direction_DIRECTION_DOWN:
@@ -122,24 +124,24 @@ func (b *Board) NewLocation(player *Player) EntityLocation {
 		locationX = numColumns - 1
 	}
 
-	return EntityLocation{X: locationX, Y: locationY}
+	return Location{X: locationX, Y: locationY}
 }
 
 func (b *Board) AddNewPoint() {
 	location := b.GetRandomFreeSpace()
-	b.Entities[location] = NewEntity(NeutralID, models.EntityType_ENTITY_TYPE_POINT)
+	b.Entities[location] = NewEntity(NeutralID, models.EntityType_ENTITY_TYPE_POINT, location)
 }
 
 func (b *Board) AddNewWall() {
 	location := b.GetRandomFreeSpace()
-	b.Entities[location] = NewEntity(NeutralID, models.EntityType_ENTITY_TYPE_WALL)
+	b.Entities[location] = NewEntity(NeutralID, models.EntityType_ENTITY_TYPE_WALL, location)
 }
 
-func (b *Board) GetRandomFreeSpace() EntityLocation {
+func (b *Board) GetRandomFreeSpace() Location {
 	for {
 		randomX := rand.Intn(numColumns)
 		randomY := rand.Intn(numRows)
-		newLocation := EntityLocation{X: randomX, Y: randomY}
+		newLocation := Location{X: randomX, Y: randomY}
 		_, ok := b.Entities[newLocation]
 		if !ok {
 			return newLocation

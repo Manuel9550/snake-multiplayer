@@ -1,6 +1,8 @@
 package internal
 
 import (
+	"log"
+	"os"
 	"testing"
 	"time"
 
@@ -10,7 +12,7 @@ import (
 // Helper function to create a test player for direct map manipulation
 func createTestPlayer(id string) *Player {
 	bodyQueue := Queue{}
-	bodyQueue.Enqueue(EntityLocation{X: 0, Y: 0})
+	bodyQueue.Enqueue(Location{X: 0, Y: 0})
 	return &Player{
 		ID:        id,
 		conn:      nil, // We won't use the connection in these tests
@@ -20,14 +22,15 @@ func createTestPlayer(id string) *Player {
 		Y:         0,
 		BodyQueue: bodyQueue,
 		Length:    1,
-		State:     models.State_STATE_CONNECTING,
+		State:     models.PlayerState_STATE_CONNECTING,
 	}
 }
 
 // TestNewSession tests session initialization
 func TestNewSession(t *testing.T) {
 	finishedCh := make(chan string, 1)
-	session := NewSession(finishedCh)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
 	defer session.DeleteSessionResources()
 
 	if session.SessionID == "" {
@@ -79,7 +82,8 @@ func TestAddPlayerColorAssignment(t *testing.T) {
 // TestCanJoinWithMaxPlayers tests the CanJoin logic
 func TestCanJoinWithMaxPlayers(t *testing.T) {
 	finishedCh := make(chan string, 1)
-	session := NewSession(finishedCh)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
 	defer session.DeleteSessionResources()
 
 	// Initially should not be able to join, since we are initializing
@@ -96,7 +100,7 @@ func TestCanJoinWithMaxPlayers(t *testing.T) {
 	var testPlayer *Player
 	for i := 0; i < 4; i++ {
 		player := createTestPlayer("player-" + string(rune('1'+i)))
-		player.State = models.State_STATE_CONNECTED
+		player.State = models.PlayerState_STATE_CONNECTED
 
 		resultCh := make(chan error)
 		session.addPlayerCh <- &addPlayerCmd{
@@ -151,7 +155,8 @@ func TestCanJoinWithMaxPlayers(t *testing.T) {
 // TestGetPlayersEmpty tests GetPlayers with no players
 func TestGetPlayersEmpty(t *testing.T) {
 	finishedCh := make(chan string, 1)
-	session := NewSession(finishedCh)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
 	defer session.DeleteSessionResources()
 
 	players := session.GetPlayers()
@@ -164,14 +169,15 @@ func TestGetPlayersEmpty(t *testing.T) {
 // TestGetPlayersMultiple tests fetching the list of players
 func TestGetPlayersMultiple(t *testing.T) {
 	finishedCh := make(chan string, 1)
-	session := NewSession(finishedCh)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
 	defer session.DeleteSessionResources()
 
 	// Add players via the actor channel (avoid HandlePlayer)
 	playerIDs := []string{"player-1", "player-2", "player-3"}
 	for _, id := range playerIDs {
 		player := createTestPlayer(id)
-		player.State = models.State_STATE_CONNECTED
+		player.State = models.PlayerState_STATE_CONNECTED
 
 		resultCh := make(chan error)
 		session.addPlayerCh <- &addPlayerCmd{
@@ -205,7 +211,8 @@ func TestGetPlayersMultiple(t *testing.T) {
 // TestCheckAllPlayersReadyInsufficientPlayers tests ready check with < 2 players
 func TestCheckAllPlayersReadyInsufficientPlayers(t *testing.T) {
 	finishedCh := make(chan string, 1)
-	session := NewSession(finishedCh)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
 	defer session.DeleteSessionResources()
 
 	// With no players, should not be ready
@@ -215,7 +222,7 @@ func TestCheckAllPlayersReadyInsufficientPlayers(t *testing.T) {
 
 	// Add one player marked as ready
 	player := createTestPlayer("player-1")
-	player.State = models.State_STATE_READY
+	player.State = models.PlayerState_STATE_READY
 
 	resultCh := make(chan error)
 	session.addPlayerCh <- &addPlayerCmd{
@@ -233,13 +240,14 @@ func TestCheckAllPlayersReadyInsufficientPlayers(t *testing.T) {
 // TestCheckAllPlayersReadyNotAllReady tests when players exist but aren't ready
 func TestCheckAllPlayersReadyNotAllReady(t *testing.T) {
 	finishedCh := make(chan string, 1)
-	session := NewSession(finishedCh)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
 	defer session.DeleteSessionResources()
 
 	// Add two players, not ready
 	for i := 0; i < 2; i++ {
 		player := createTestPlayer("player-" + string(rune('1'+i)))
-		player.State = models.State_STATE_CONNECTED
+		player.State = models.PlayerState_STATE_CONNECTED
 
 		resultCh := make(chan error)
 		session.addPlayerCh <- &addPlayerCmd{
@@ -257,7 +265,8 @@ func TestCheckAllPlayersReadyNotAllReady(t *testing.T) {
 // TestCheckAllPlayersReadyAllReady tests when all players are ready
 func TestCheckAllPlayersReadyAllReady(t *testing.T) {
 	finishedCh := make(chan string, 1)
-	session := NewSession(finishedCh)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
 	defer session.DeleteSessionResources()
 
 	// Add two players
@@ -278,7 +287,7 @@ func TestCheckAllPlayersReadyAllReady(t *testing.T) {
 		resultCh := make(chan error)
 		session.updateStateCh <- &updatePlayerStateCmd{
 			playerID: id,
-			state:    models.State_STATE_READY,
+			state:    models.PlayerState_STATE_READY,
 			resultCh: resultCh,
 		}
 		<-resultCh
@@ -292,12 +301,13 @@ func TestCheckAllPlayersReadyAllReady(t *testing.T) {
 // TestUpdatePlayerDirection tests updating player direction via channel
 func TestUpdatePlayerDirection(t *testing.T) {
 	finishedCh := make(chan string, 1)
-	session := NewSession(finishedCh)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
 	defer session.DeleteSessionResources()
 
 	player := createTestPlayer("player-1")
 	player.Direction = models.Direction_DIRECTION_UP
-	player.State = models.State_STATE_CONNECTED
+	player.State = models.PlayerState_STATE_CONNECTED
 
 	// Add player
 	addResultCh := make(chan error)
@@ -334,7 +344,8 @@ func TestUpdatePlayerDirection(t *testing.T) {
 // TestUpdatePlayerDirectionNonExistentPlayer tests updating direction for non-existent player
 func TestUpdatePlayerDirectionNonExistentPlayer(t *testing.T) {
 	finishedCh := make(chan string, 1)
-	session := NewSession(finishedCh)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
 	defer session.DeleteSessionResources()
 
 	resultCh := make(chan error)
@@ -353,11 +364,12 @@ func TestUpdatePlayerDirectionNonExistentPlayer(t *testing.T) {
 // TestUpdatePlayerState tests updating player state via channel
 func TestUpdatePlayerState(t *testing.T) {
 	finishedCh := make(chan string, 1)
-	session := NewSession(finishedCh)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
 	defer session.DeleteSessionResources()
 
 	player := createTestPlayer("player-1")
-	player.State = models.State_STATE_CONNECTED
+	player.State = models.PlayerState_STATE_CONNECTED
 
 	// Add player
 	addResultCh := make(chan error)
@@ -371,7 +383,7 @@ func TestUpdatePlayerState(t *testing.T) {
 	resultCh := make(chan error)
 	session.updateStateCh <- &updatePlayerStateCmd{
 		playerID: "player-1",
-		state:    models.State_STATE_READY,
+		state:    models.PlayerState_STATE_READY,
 		resultCh: resultCh,
 	}
 
@@ -386,7 +398,7 @@ func TestUpdatePlayerState(t *testing.T) {
 		t.Fatalf("Expected 1 player, got %d", len(players))
 	}
 
-	if players[0].State != models.State_STATE_READY {
+	if players[0].State != models.PlayerState_STATE_READY {
 		t.Errorf("Expected state READY, got %v", players[0].State)
 	}
 }
@@ -394,13 +406,14 @@ func TestUpdatePlayerState(t *testing.T) {
 // TestUpdatePlayerStateNonExistentPlayer tests updating state for non-existent player
 func TestUpdatePlayerStateNonExistentPlayer(t *testing.T) {
 	finishedCh := make(chan string, 1)
-	session := NewSession(finishedCh)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
 	defer session.DeleteSessionResources()
 
 	resultCh := make(chan error)
 	session.updateStateCh <- &updatePlayerStateCmd{
 		playerID: "non-existent",
-		state:    models.State_STATE_READY,
+		state:    models.PlayerState_STATE_READY,
 		resultCh: resultCh,
 	}
 
@@ -413,7 +426,8 @@ func TestUpdatePlayerStateNonExistentPlayer(t *testing.T) {
 // TestPlayerStates tests fetching player states
 func TestPlayerStates(t *testing.T) {
 	finishedCh := make(chan string, 1)
-	session := NewSession(finishedCh)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
 	defer session.DeleteSessionResources()
 
 	// Add two players
@@ -433,53 +447,54 @@ func TestPlayerStates(t *testing.T) {
 	resultCh := make(chan error)
 	session.updateStateCh <- &updatePlayerStateCmd{
 		playerID: "player-1",
-		state:    models.State_STATE_READY,
+		state:    models.PlayerState_STATE_READY,
 		resultCh: resultCh,
 	}
 	<-resultCh
 
 	// Player2 stays in CONNECTED state (set by addPlayerInternal)
 
-	states := session.PlayerStates()
+	players := session.GetPlayers()
 
-	// PlayerStates should have entries
-	if len(states.PlayerStates) < 2 {
-		t.Errorf("Expected at least 2 player states, got %d", len(states.PlayerStates))
+	// Should have 2 players
+	if len(players) < 2 {
+		t.Errorf("Expected at least 2 players, got %d", len(players))
 	}
 
 	// Verify states contain expected player IDs
 	foundPlayer1 := false
 	foundPlayer2 := false
-	for _, state := range states.PlayerStates {
-		if state.PlayerID == "player-1" {
+	for _, player := range players {
+		if player.ID == "player-1" {
 			foundPlayer1 = true
-			if state.State != models.State_STATE_READY {
-				t.Errorf("Expected player-1 state READY, got %v", state.State)
+			if player.State != models.PlayerState_STATE_READY {
+				t.Errorf("Expected player-1 state READY, got %v", player.State)
 			}
 		}
-		if state.PlayerID == "player-2" {
+		if player.ID == "player-2" {
 			foundPlayer2 = true
-			if state.State != models.State_STATE_CONNECTED {
-				t.Errorf("Expected player-2 state CONNECTED, got %v", state.State)
+			if player.State != models.PlayerState_STATE_CONNECTED {
+				t.Errorf("Expected player-2 state CONNECTED, got %v", player.State)
 			}
 		}
 	}
 
 	if !foundPlayer1 || !foundPlayer2 {
-		t.Error("Not all expected players found in PlayerStates")
+		t.Error("Not all expected players found")
 	}
 }
 
 // TestRemovePlayer tests removing a player
 func TestRemovePlayer(t *testing.T) {
 	finishedCh := make(chan string, 1)
-	session := NewSession(finishedCh)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
 	defer session.DeleteSessionResources()
 
 	// Add two players
 	for i := 0; i < 2; i++ {
 		player := createTestPlayer("player-" + string(rune('1'+i)))
-		player.State = models.State_STATE_CONNECTED
+		player.State = models.PlayerState_STATE_CONNECTED
 
 		resultCh := make(chan error)
 		session.addPlayerCh <- &addPlayerCmd{
@@ -520,12 +535,13 @@ func TestRemovePlayer(t *testing.T) {
 // TestRemoveLastPlayerMarksSessionDone tests session cleanup when last player leaves
 func TestRemoveLastPlayerMarksSessionDone(t *testing.T) {
 	finishedCh := make(chan string, 10)
-	session := NewSession(finishedCh)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
 	defer session.DeleteSessionResources()
 
 	// Add one player
 	player := createTestPlayer("player-1")
-	player.State = models.State_STATE_CONNECTED
+	player.State = models.PlayerState_STATE_CONNECTED
 
 	addResultCh := make(chan error)
 	session.addPlayerCh <- &addPlayerCmd{

@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/Manuel9550/snake-multiplayer/snake-server/gen/models"
@@ -49,8 +50,12 @@ type updatePlayerDirectionCmd struct {
 
 type updatePlayerStateCmd struct {
 	playerID string
-	state    models.State
+	state    models.PlayerState
 	resultCh chan error
+}
+
+type getEntitiesCmd struct {
+	resultCh chan []*Entity
 }
 
 type Session struct {
@@ -63,20 +68,24 @@ type Session struct {
 	UpdateClientsTicker  *time.Ticker
 	State                models.SessionState
 	finishedChannel      chan string
+	winningPlayerID      string
 
 	// Actor pattern channels
 	addPlayerCh       chan *addPlayerCmd
 	removePlayerCh    chan *removePlayerCmd
 	sendMessageCh     chan *sendMessageCmd
 	getPlayersCh      chan *getPlayersCmd
+	getEntitiesCh     chan *getEntitiesCmd
 	canJoinCh         chan *canJoinCmd
 	checkAllReadyCh   chan *checkAllPlayersReadyCmd
 	updateDirectionCh chan *updatePlayerDirectionCmd
 	updateStateCh     chan *updatePlayerStateCmd
 	shutdownCh        chan struct{}
+
+	logger *log.Logger
 }
 
-func NewSession(finishedChannel chan string) *Session {
+func NewSession(finishedChannel chan string, logger *log.Logger) *Session {
 	session := Session{
 		SessionID:            uuid.New().String(),
 		Entities:             make(map[string]*Entity, 0),
@@ -97,6 +106,9 @@ func NewSession(finishedChannel chan string) *Session {
 		updateDirectionCh: make(chan *updatePlayerDirectionCmd),
 		updateStateCh:     make(chan *updatePlayerStateCmd),
 		shutdownCh:        make(chan struct{}),
+		getEntitiesCh:     make(chan *getEntitiesCmd),
+
+		logger: logger,
 	}
 	fmt.Printf("New session %s\n", session.SessionID)
 
@@ -126,7 +138,7 @@ func (s *Session) run() {
 			cmd.resultCh <- players
 
 		case cmd := <-s.canJoinCh:
-			fmt.Printf("Len players: %d, current state: %v", len(s.Players), s.State)
+			s.logger.Printf("Len players: %d, current state: %v", len(s.Players), s.State)
 			cmd.resultCh <- (len(s.Players) < maxPlayers && s.State == models.SessionState_SESSION_STATE_SETUP)
 
 		case cmd := <-s.checkAllReadyCh:
@@ -134,7 +146,7 @@ func (s *Session) run() {
 			playerCount := 0
 			for _, player := range s.Players {
 				playerCount += 1
-				if player.State != models.State_STATE_READY {
+				if player.State != models.PlayerState_STATE_READY {
 					allReady = false
 					break
 				}
@@ -162,6 +174,13 @@ func (s *Session) run() {
 				player.UpdateState(cmd.state)
 				cmd.resultCh <- nil
 			}
+
+		case cmd := <-s.getEntitiesCh:
+			entities := make([]*Entity, 0, len(s.Entities))
+			for _, e := range s.Entities {
+				entities = append(entities, e)
+			}
+			cmd.resultCh <- entities
 
 		case <-s.shutdownCh:
 			return
@@ -191,9 +210,9 @@ func (s *Session) addPlayerInternal(newPlayer *Player) error {
 		newPlayer.Colour = "white"
 	}
 
-	newPlayer.State = models.State_STATE_CONNECTED
+	newPlayer.State = models.PlayerState_STATE_CONNECTED
 	s.Players[newPlayer.ID] = newPlayer
-	fmt.Printf("Player ID %s added to session: %s\n", newPlayer.ID, s.SessionID)
+	s.logger.Printf("Player ID %s added to session: %s\n", newPlayer.ID, s.SessionID)
 
 	go s.HandlePlayer(newPlayer)
 	return nil
@@ -213,9 +232,9 @@ func (s *Session) removePlayerInternal(playerID string) error {
 		s.State = models.SessionState_SESSION_STATE_DONE
 		select {
 		case s.finishedChannel <- s.SessionID:
-			fmt.Println("sent message", s.SessionID)
+			s.logger.Printf("sent message: %s", s.SessionID)
 		default:
-			fmt.Println("no message sent")
+			s.logger.Println("no message sent")
 		}
 	}
 
@@ -246,7 +265,7 @@ func (s *Session) sendMessageInternal(playerID *string, data []byte) {
 
 	player, ok := s.Players[*playerID]
 	if !ok || player == nil {
-		fmt.Printf("Error finding player with ID %s\n", *playerID)
+		s.logger.Printf("Error finding player with ID %s\n", *playerID)
 		return
 	}
 
@@ -256,24 +275,7 @@ func (s *Session) sendMessageInternal(playerID *string, data []byte) {
 	}()
 }
 
-// Public API methods - send commands via channels
-
 func (s *Session) AddPlayer(newPlayer *Player) error {
-	// Send player data message before adding to session
-	newPlayerData := newPlayer.ToPlayerProtoMessage()
-	envelope := models.Envelope{
-		Type: models.MessageType_MESSAGE_TYPE_PLAYER,
-		MessageData: &models.Envelope_Data{
-			Data: newPlayerData,
-		},
-	}
-	data, err := proto.Marshal(&envelope)
-	if err != nil {
-		return err
-	}
-
-	newPlayer.SendMessage(data)
-
 	// Use channel to add player to session
 	resultCh := make(chan error)
 	s.addPlayerCh <- &addPlayerCmd{
@@ -312,26 +314,8 @@ func (s *Session) StartSession() {
 	}
 
 	s.Board.Initialize(players)
-
 	s.State = models.SessionState_SESSION_STATE_RUNNING
-
-	envelope := models.Envelope{
-		Type: models.MessageType_MESSAGE_TYPE_SERVER_STATE,
-		MessageData: &models.Envelope_ServerState{
-			ServerState: &models.ServerStateMessage{
-				SessionID:   s.SessionID,
-				ServerState: models.ServerState(s.State),
-			},
-		},
-	}
-
-	data, err := proto.Marshal(&envelope)
-	if err != nil {
-		fmt.Println("Error marshalling message:", err)
-		return
-	}
-
-	s.BroadcastMessage(data)
+	s.BroadcastMessage(s.GetSessionData(nil, nil))
 
 	go s.UpdateState()
 }
@@ -340,38 +324,34 @@ func (s *Session) HandlePlayer(player *Player) {
 	// If conn is nil, this is a test scenario - don't auto-remove the player
 	if player.conn == nil {
 		// Still broadcast player states for testing purposes
-		s.BroadcastPlayerStates()
+		s.BroadcastMessage(s.GetSessionData(nil, nil))
 		return
 	}
 
 	// Send the player their welcome message
 	envelope := models.Envelope{
 		Type: models.MessageType_MESSAGE_TYPE_WELCOME,
-		MessageData: &models.Envelope_PlayerData{
-			PlayerData: &models.Welcome{
-				PlayerID:  player.ID,
-				SessionID: s.SessionID,
-				Colour:    player.Colour,
-			},
+		MessageData: &models.Envelope_Welcome{
+			Welcome: player.ToPlayerProtoMessage(),
 		},
 	}
 	data, err := proto.Marshal(&envelope)
 	if err != nil {
-		fmt.Println("Error marshalling message:", err)
+		s.logger.Printf("Error marshalling message: %s", err.Error())
 	}
 	s.SendMessage(&player.ID, data)
 
 	// Broadcast that the player connected to all players
-	s.BroadcastPlayerStates()
+	s.BroadcastMessage(s.GetSessionData(nil, nil))
 
 	// Read the player messages, until the connection is closed
 	err = player.ReadPlayerMessages(s.PlayerInputChannel)
 	// Now that we returned, was it a close error?
 	if !websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure) {
 		// Log the error
-		fmt.Printf("Player ID %s closed unexpectadly\n", player.ID)
+		s.logger.Printf("Player ID %s closed unexpectadly\n", player.ID)
 	} else {
-		fmt.Printf("Player ID %s closed connection\n", player.ID)
+		s.logger.Printf("Player ID %s closed connection\n", player.ID)
 	}
 
 	// Either way, shut down the player
@@ -382,24 +362,24 @@ func (s *Session) HandlePlayer(player *Player) {
 func (s *Session) ReadChannelMessages() {
 	for message := range s.PlayerInputChannel {
 		if err := s.HandleMessage(message); err != nil {
-			fmt.Printf("Error reading message: %s : %s", string(message), err.Error())
+			s.logger.Printf("Error reading message: %s : %s", string(message), err.Error())
 		}
 	}
 }
 
 func (s *Session) HandleMessage(message []byte) error {
-	fmt.Printf("Got message: current state is: %s\n", s.State)
+	s.logger.Printf("Got message: current state is: %s\n", s.State)
 	// Depending on what state the session is in, we accept different types of messages
 	switch s.State {
 	case models.SessionState_SESSION_STATE_SETUP:
 		err := s.HandlePlayerReadyUp(message)
 		if err != nil {
-			fmt.Println("Error handling player input message:", err)
+			s.logger.Printf("Error handling player input message: %s", err.Error())
 		}
 	case models.SessionState_SESSION_STATE_RUNNING:
 		err := s.HandlePlayerInput(message)
 		if err != nil {
-			fmt.Println("Error handling player input message:", err)
+			s.logger.Printf("Error handling player input message: %s", err.Error())
 		}
 	}
 
@@ -425,30 +405,24 @@ func (s *Session) HandlePlayerInput(message []byte) error {
 
 func (s *Session) HandlePlayerReadyUp(message []byte) error {
 	// This should be 'ready' message
-	fmt.Printf("In HandlePlayerReadyUp\n")
-	input := &models.PlayerState{}
+	input := &models.ReadyUp{}
 	if err := proto.Unmarshal(message, input); err != nil {
 		return err
-	}
-
-	if input.State != models.State_STATE_READY {
-		// Intentionally ignore messages that aren't readying up
-		fmt.Printf("Ignoring non ready up message, got: %v", input.State)
-		return nil
 	}
 
 	// Use channel to update player state
 	resultCh := make(chan error)
 	s.updateStateCh <- &updatePlayerStateCmd{
 		playerID: input.PlayerID,
-		state:    input.State,
+		state:    models.PlayerState_STATE_READY,
 		resultCh: resultCh,
 	}
 	if err := <-resultCh; err != nil {
 		return err
 	}
 
-	s.BroadcastPlayerStates()
+	sessionData := s.GetSessionData(nil, nil)
+	s.BroadcastMessage(sessionData)
 
 	if s.CheckAllPlayersReady() {
 		s.StartSession()
@@ -466,45 +440,34 @@ func (s *Session) CheckAllPlayersReady() bool {
 }
 
 func (s *Session) UpdateState() {
+	defer func() {
+		s.shutdownCh <- struct{}{}
+	}()
 	for range s.UpdateEntitiesTicker.C {
 		players := s.GetPlayers()
 		s.UpdateBoard(players)
 		gameDone, winningPlayer := s.CheckGameOver(players)
 		if gameDone {
 			s.EndSession(winningPlayer)
+			sessionData := s.GetSessionData(players, nil)
+			s.BroadcastMessage(sessionData)
 			return
 		}
-		s.UpdateClients(players)
+		sessionData := s.GetSessionData(players, nil)
+		s.BroadcastMessage(sessionData)
 	}
 }
 
 func (s *Session) EndSession(winningPlayer *Player) {
 	s.State = models.SessionState_SESSION_STATE_DONE
-	playerID := ""
 	if winningPlayer != nil {
-		playerID = winningPlayer.ID
+		s.winningPlayerID = winningPlayer.ID
 	}
-	envelope := models.Envelope{
-		Type: models.MessageType_MESSAGE_TYPE_GAME_OVER,
-		MessageData: &models.Envelope_GameOver{
-			GameOver: &models.GameOver{
-				SessionID:       s.SessionID,
-				WinningPlayerID: playerID,
-			},
-		},
-	}
-	data, err := proto.Marshal(&envelope)
-	if err != nil {
-		fmt.Println("Error marshalling message:", err)
-	}
-
-	s.BroadcastMessage(data)
-
 }
 
 func (s *Session) UpdateBoard(players []*Player) {
 	for _, player := range players {
-		if player.State != models.State_STATE_DONE {
+		if player.State != models.PlayerState_STATE_DONE {
 			s.Board.Update(player)
 		}
 	}
@@ -514,7 +477,7 @@ func (s *Session) CheckGameOver(players []*Player) (bool, *Player) {
 	activePlayers := 0
 	var activePlayer *Player
 	for _, player := range players {
-		if player.State != models.State_STATE_PLAYING {
+		if player.State != models.PlayerState_STATE_DONE {
 			activePlayers += 1
 			activePlayer = player
 		}
@@ -528,31 +491,6 @@ func (s *Session) CheckGameOver(players []*Player) (bool, *Player) {
 	}
 
 	return false, nil
-}
-
-func (s *Session) UpdateClients(players []*Player) {
-	gameData := models.GameData{
-		PlayerData: []*models.Player{},
-		EntityData: []*models.Entity{},
-	}
-	for _, player := range players {
-		gameData.PlayerData = append(gameData.PlayerData, player.ToPlayerProtoMessage())
-	}
-	for location, entity := range s.Board.Entities {
-		gameData.EntityData = append(gameData.EntityData, entity.ToEntityProtoMessage(location))
-	}
-	envelope := models.Envelope{
-		Type: models.MessageType_MESSAGE_TYPE_GAME_DATA,
-		MessageData: &models.Envelope_GameState{
-			GameState: &gameData,
-		},
-	}
-	data, err := proto.Marshal(&envelope)
-	if err != nil {
-		fmt.Println("Error marshalling message:", err)
-	}
-
-	s.BroadcastMessage(data)
 }
 
 func (s *Session) SendMessage(playerID *string, data []byte) {
@@ -579,6 +517,14 @@ func (s *Session) GetPlayers() []*Player {
 	return <-playersCh
 }
 
+func (s *Session) GetEntities() []*Entity {
+	entityCh := make(chan []*Entity)
+	s.getEntitiesCh <- &getEntitiesCmd{
+		resultCh: entityCh,
+	}
+	return <-entityCh
+}
+
 func (s *Session) DeleteSessionResources() {
 	players := s.GetPlayers()
 
@@ -586,47 +532,53 @@ func (s *Session) DeleteSessionResources() {
 	for _, player := range players {
 		err := s.ReleasePlayer(player.ID)
 		if err != nil {
-			fmt.Printf("Error releasing player ID %s:%s", player.ID, err.Error())
+			s.logger.Printf("Error releasing player ID %s:%s", player.ID, err.Error())
 		}
 	}
 
 	close(s.PlayerInputChannel)
+
 	close(s.shutdownCh) // Shut down the actor goroutine
 }
 
-func (s *Session) PlayerStates() models.PlayerStates {
-	// Get the players, before getting their state
-	playersCh := make(chan []*Player)
-	s.getPlayersCh <- &getPlayersCmd{
-		resultCh: playersCh,
-	}
-	players := <-playersCh
-
-	returnValues := models.PlayerStates{
-		PlayerStates: make([]*models.PlayerState, 0, len(players)),
-	}
-	for _, player := range players {
-		returnValues.PlayerStates = append(returnValues.PlayerStates, &models.PlayerState{
-			PlayerID: player.ID,
-			State:    player.State,
-			Colour:   player.Colour,
-		})
+func (s *Session) GetSessionData(players []*Player, entities []*Entity) []byte {
+	// Depending on where we are in the session, we may pass in the players and entities
+	if players == nil {
+		players = s.GetPlayers()
 	}
 
-	return returnValues
-}
+	if entities == nil {
+		entities = s.GetEntities()
+	}
 
-func (s *Session) BroadcastPlayerStates() {
-	states := s.PlayerStates()
-	envelope := models.Envelope{
-		Type: models.MessageType_MESSAGE_TYPE_PLAYER_STATES,
-		MessageData: &models.Envelope_PlayerStates{
-			PlayerStates: &states,
+	returnData := models.Envelope_SessionData{
+		SessionData: &models.SessionData{
+			SessionID:     s.SessionID,
+			State:         s.State,
+			WinningPlayer: s.winningPlayerID,
+			GameData: &models.GameData{
+				PlayerData: make([]*models.Player, 0),
+				EntityData: make([]*models.Entity, 0),
+			},
 		},
 	}
+
+	for _, player := range players {
+		returnData.SessionData.GameData.PlayerData = append(returnData.SessionData.GameData.PlayerData, player.ToPlayerProtoMessage())
+	}
+	for _, entity := range entities {
+		returnData.SessionData.GameData.EntityData = append(returnData.SessionData.GameData.EntityData, entity.ToEntityProtoMessage())
+	}
+
+	envelope := models.Envelope{
+		Type:        models.MessageType_MESSAGE_TYPE_SESSION_DATA,
+		MessageData: &returnData,
+	}
+
 	data, err := proto.Marshal(&envelope)
 	if err != nil {
-		fmt.Println("Error marshalling player states message:", err)
+		s.logger.Printf("Error marshalling session data: %s", err.Error())
 	}
-	s.BroadcastMessage(data)
+
+	return data
 }

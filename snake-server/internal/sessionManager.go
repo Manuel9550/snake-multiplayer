@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"sync"
 
@@ -13,13 +14,15 @@ type SessionManager struct {
 	sessions    map[string]*Session
 	sessionsMu  sync.Mutex
 	doneChannel chan string
+	logger      *log.Logger
 }
 
-func NewSessionManager() *SessionManager {
+func NewSessionManager(logger *log.Logger) *SessionManager {
 	return &SessionManager{
 		sessions:    make(map[string]*Session),
 		sessionsMu:  sync.Mutex{},
 		doneChannel: make(chan string),
+		logger:      logger,
 	}
 }
 
@@ -27,7 +30,7 @@ func (s *SessionManager) HandleConnection(upgrader *websocket.Upgrader) http.Han
 	return func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			fmt.Println("Error upgrading:", err)
+			s.logger.Printf("Error upgrading: %s\n", err.Error())
 			return
 		}
 
@@ -40,22 +43,22 @@ func (s *SessionManager) HandleConnection(upgrader *websocket.Upgrader) http.Han
 		if sessionToAddPlayerTo != nil {
 			err := sessionToAddPlayerTo.AddPlayer(newPlayer)
 			if err != nil {
-				fmt.Println("Error upgrading:", err)
+				s.logger.Printf("Error upgrading: %s\n", err.Error())
 			}
 			return
 		}
 
-		newSession := NewSession(s.doneChannel)
+		newSession := NewSession(s.doneChannel, s.logger)
 		newSession.State = models.SessionState_SESSION_STATE_SETUP
 		err = newSession.AddPlayer(newPlayer)
 		if err != nil {
-			fmt.Println("Error adding player to session:", err)
+			s.logger.Printf("Error adding player to session: %s\n", err.Error())
 			return
 		}
 
 		err = s.AddSession(newSession)
 		if err != nil {
-			fmt.Println("Error adding session to session manager:", err)
+			s.logger.Printf("Error adding session to session manager: %s", err.Error())
 			return
 		}
 	}
@@ -88,7 +91,7 @@ func (s *SessionManager) DeleteSession(sessionID string) error {
 		}
 	}
 	s.sessions = copiedMap
-	fmt.Printf("Deleted session %s\n", sessionID)
+	s.logger.Printf("Deleted session %s\n", sessionID)
 
 	return nil
 }

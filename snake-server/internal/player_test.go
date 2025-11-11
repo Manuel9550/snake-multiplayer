@@ -10,27 +10,37 @@ import (
 func TestQueueEnqueue(t *testing.T) {
 	q := Queue{}
 
-	q.Enqueue(EntityLocation{X: 1, Y: 2})
-	q.Enqueue(EntityLocation{X: 3, Y: 4})
+	q.Enqueue(Location{X: 1, Y: 2})
+	q.Enqueue(Location{X: 3, Y: 4})
 
-	if len(q) != 2 {
-		t.Errorf("Expected queue length 2, got %d", len(q))
+	if q.Len() != 2 {
+		t.Errorf("Expected queue length 2, got %d", q.Len())
 	}
 
-	if q[0].X != 1 || q[0].Y != 2 {
-		t.Errorf("Expected first element {1, 2}, got {%d, %d}", q[0].X, q[0].Y)
+	first := q.Get(0)
+	if first == nil || first.X != 1 || first.Y != 2 {
+		if first == nil {
+			t.Error("Expected first element to exist")
+		} else {
+			t.Errorf("Expected first element {1, 2}, got {%d, %d}", first.X, first.Y)
+		}
 	}
 
-	if q[1].X != 3 || q[1].Y != 4 {
-		t.Errorf("Expected second element {3, 4}, got {%d, %d}", q[1].X, q[1].Y)
+	second := q.Get(1)
+	if second == nil || second.X != 3 || second.Y != 4 {
+		if second == nil {
+			t.Error("Expected second element to exist")
+		} else {
+			t.Errorf("Expected second element {3, 4}, got {%d, %d}", second.X, second.Y)
+		}
 	}
 }
 
 // TestQueueDequeue tests removing items from the queue
 func TestQueueDequeue(t *testing.T) {
 	q := Queue{}
-	q.Enqueue(EntityLocation{X: 1, Y: 2})
-	q.Enqueue(EntityLocation{X: 3, Y: 4})
+	q.Enqueue(Location{X: 1, Y: 2})
+	q.Enqueue(Location{X: 3, Y: 4})
 
 	item := q.Dequeue()
 	if item == nil {
@@ -41,8 +51,8 @@ func TestQueueDequeue(t *testing.T) {
 		t.Errorf("Expected dequeued element {1, 2}, got {%d, %d}", item.X, item.Y)
 	}
 
-	if len(q) != 1 {
-		t.Errorf("Expected queue length 1 after dequeue, got %d", len(q))
+	if q.Len() != 1 {
+		t.Errorf("Expected queue length 1 after dequeue, got %d", q.Len())
 	}
 
 	item = q.Dequeue()
@@ -54,8 +64,8 @@ func TestQueueDequeue(t *testing.T) {
 		t.Errorf("Expected dequeued element {3, 4}, got {%d, %d}", item.X, item.Y)
 	}
 
-	if len(q) != 0 {
-		t.Errorf("Expected empty queue after two dequeues, got length %d", len(q))
+	if q.Len() != 0 {
+		t.Errorf("Expected empty queue after two dequeues, got length %d", q.Len())
 	}
 }
 
@@ -77,7 +87,7 @@ func TestQueueIsEmpty(t *testing.T) {
 		t.Error("Expected queue to be empty initially")
 	}
 
-	q.Enqueue(EntityLocation{X: 1, Y: 2})
+	q.Enqueue(Location{X: 1, Y: 2})
 
 	if q.IsEmpty() {
 		t.Error("Expected queue to not be empty after enqueue")
@@ -93,8 +103,8 @@ func TestQueueIsEmpty(t *testing.T) {
 // TestQueueToProto tests converting queue to proto format
 func TestQueueToProto(t *testing.T) {
 	q := Queue{}
-	q.Enqueue(EntityLocation{X: 5, Y: 10})
-	q.Enqueue(EntityLocation{X: 15, Y: 20})
+	q.Enqueue(Location{X: 5, Y: 10})
+	q.Enqueue(Location{X: 15, Y: 20})
 
 	protoFields := q.ToProto()
 
@@ -185,21 +195,21 @@ func TestUpdateDirectionInvalid(t *testing.T) {
 // TestUpdateState tests updating player state
 func TestUpdateState(t *testing.T) {
 	player := &Player{
-		State: models.State_STATE_CONNECTING,
+		State: models.PlayerState_STATE_CONNECTING,
 	}
 
-	player.UpdateState(models.State_STATE_CONNECTED)
-	if player.State != models.State_STATE_CONNECTED {
+	player.UpdateState(models.PlayerState_STATE_CONNECTED)
+	if player.State != models.PlayerState_STATE_CONNECTED {
 		t.Errorf("Expected state STATE_CONNECTED, got %v", player.State)
 	}
 
-	player.UpdateState(models.State_STATE_READY)
-	if player.State != models.State_STATE_READY {
+	player.UpdateState(models.PlayerState_STATE_READY)
+	if player.State != models.PlayerState_STATE_READY {
 		t.Errorf("Expected state STATE_READY, got %v", player.State)
 	}
 
-	player.UpdateState(models.State_STATE_DONE)
-	if player.State != models.State_STATE_DONE {
+	player.UpdateState(models.PlayerState_STATE_DONE)
+	if player.State != models.PlayerState_STATE_DONE {
 		t.Errorf("Expected state STATE_DONE, got %v", player.State)
 	}
 }
@@ -207,8 +217,8 @@ func TestUpdateState(t *testing.T) {
 // TestToPlayerProtoMessage tests converting player to proto message
 func TestToPlayerProtoMessage(t *testing.T) {
 	bodyQueue := Queue{}
-	bodyQueue.Enqueue(EntityLocation{X: 5, Y: 10})
-	bodyQueue.Enqueue(EntityLocation{X: 6, Y: 10})
+	bodyQueue.Enqueue(Location{X: 5, Y: 10})
+	bodyQueue.Enqueue(Location{X: 6, Y: 10})
 
 	player := &Player{
 		ID:        "test-player-123",

@@ -76,28 +76,79 @@ func (SessionState) EnumDescriptor() ([]byte, []int) {
 	return file_session_proto_rawDescGZIP(), []int{0}
 }
 
-type SessionStateMessage struct {
+type MessageType int32
+
+const (
+	MessageType_MESSAGE_TYPE_UNKNOWN      MessageType = 0
+	MessageType_MESSAGE_TYPE_WELCOME      MessageType = 1
+	MessageType_MESSAGE_TYPE_SESSION_DATA MessageType = 2
+)
+
+// Enum value maps for MessageType.
+var (
+	MessageType_name = map[int32]string{
+		0: "MESSAGE_TYPE_UNKNOWN",
+		1: "MESSAGE_TYPE_WELCOME",
+		2: "MESSAGE_TYPE_SESSION_DATA",
+	}
+	MessageType_value = map[string]int32{
+		"MESSAGE_TYPE_UNKNOWN":      0,
+		"MESSAGE_TYPE_WELCOME":      1,
+		"MESSAGE_TYPE_SESSION_DATA": 2,
+	}
+)
+
+func (x MessageType) Enum() *MessageType {
+	p := new(MessageType)
+	*p = x
+	return p
+}
+
+func (x MessageType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (MessageType) Descriptor() protoreflect.EnumDescriptor {
+	return file_session_proto_enumTypes[1].Descriptor()
+}
+
+func (MessageType) Type() protoreflect.EnumType {
+	return &file_session_proto_enumTypes[1]
+}
+
+func (x MessageType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use MessageType.Descriptor instead.
+func (MessageType) EnumDescriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{1}
+}
+
+type SessionData struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionID     string                 `protobuf:"bytes,1,opt,name=SessionID,proto3" json:"SessionID,omitempty"`
-	SessionState  SessionState           `protobuf:"varint,2,opt,name=SessionState,proto3,enum=SessionState" json:"SessionState,omitempty"`
+	State         SessionState           `protobuf:"varint,2,opt,name=State,proto3,enum=SessionState" json:"State,omitempty"`
+	GameData      *GameData              `protobuf:"bytes,3,opt,name=GameData,proto3" json:"GameData,omitempty"`
+	WinningPlayer string                 `protobuf:"bytes,4,opt,name=WinningPlayer,proto3" json:"WinningPlayer,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SessionStateMessage) Reset() {
-	*x = SessionStateMessage{}
+func (x *SessionData) Reset() {
+	*x = SessionData{}
 	mi := &file_session_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SessionStateMessage) String() string {
+func (x *SessionData) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SessionStateMessage) ProtoMessage() {}
+func (*SessionData) ProtoMessage() {}
 
-func (x *SessionStateMessage) ProtoReflect() protoreflect.Message {
+func (x *SessionData) ProtoReflect() protoreflect.Message {
 	mi := &file_session_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -109,39 +160,155 @@ func (x *SessionStateMessage) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SessionStateMessage.ProtoReflect.Descriptor instead.
-func (*SessionStateMessage) Descriptor() ([]byte, []int) {
+// Deprecated: Use SessionData.ProtoReflect.Descriptor instead.
+func (*SessionData) Descriptor() ([]byte, []int) {
 	return file_session_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *SessionStateMessage) GetSessionID() string {
+func (x *SessionData) GetSessionID() string {
 	if x != nil {
 		return x.SessionID
 	}
 	return ""
 }
 
-func (x *SessionStateMessage) GetSessionState() SessionState {
+func (x *SessionData) GetState() SessionState {
 	if x != nil {
-		return x.SessionState
+		return x.State
 	}
 	return SessionState_SESSION_STATE_UNKNOWN
 }
+
+func (x *SessionData) GetGameData() *GameData {
+	if x != nil {
+		return x.GameData
+	}
+	return nil
+}
+
+func (x *SessionData) GetWinningPlayer() string {
+	if x != nil {
+		return x.WinningPlayer
+	}
+	return ""
+}
+
+type Envelope struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Type  MessageType            `protobuf:"varint,1,opt,name=Type,proto3,enum=MessageType" json:"Type,omitempty"`
+	// Types that are valid to be assigned to MessageData:
+	//
+	//	*Envelope_Welcome
+	//	*Envelope_SessionData
+	MessageData   isEnvelope_MessageData `protobuf_oneof:"MessageData"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Envelope) Reset() {
+	*x = Envelope{}
+	mi := &file_session_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Envelope) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Envelope) ProtoMessage() {}
+
+func (x *Envelope) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Envelope.ProtoReflect.Descriptor instead.
+func (*Envelope) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Envelope) GetType() MessageType {
+	if x != nil {
+		return x.Type
+	}
+	return MessageType_MESSAGE_TYPE_UNKNOWN
+}
+
+func (x *Envelope) GetMessageData() isEnvelope_MessageData {
+	if x != nil {
+		return x.MessageData
+	}
+	return nil
+}
+
+func (x *Envelope) GetWelcome() *Player {
+	if x != nil {
+		if x, ok := x.MessageData.(*Envelope_Welcome); ok {
+			return x.Welcome
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetSessionData() *SessionData {
+	if x != nil {
+		if x, ok := x.MessageData.(*Envelope_SessionData); ok {
+			return x.SessionData
+		}
+	}
+	return nil
+}
+
+type isEnvelope_MessageData interface {
+	isEnvelope_MessageData()
+}
+
+type Envelope_Welcome struct {
+	Welcome *Player `protobuf:"bytes,2,opt,name=Welcome,proto3,oneof"`
+}
+
+type Envelope_SessionData struct {
+	SessionData *SessionData `protobuf:"bytes,3,opt,name=SessionData,proto3,oneof"`
+}
+
+func (*Envelope_Welcome) isEnvelope_MessageData() {}
+
+func (*Envelope_SessionData) isEnvelope_MessageData() {}
 
 var File_session_proto protoreflect.FileDescriptor
 
 const file_session_proto_rawDesc = "" +
 	"\n" +
-	"\rsession.proto\"f\n" +
-	"\x13SessionStateMessage\x12\x1c\n" +
-	"\tSessionID\x18\x01 \x01(\tR\tSessionID\x121\n" +
-	"\fSessionState\x18\x02 \x01(\x0e2\r.SessionStateR\fSessionState*\x95\x01\n" +
+	"\rsession.proto\x1a\n" +
+	"game.proto\"\x9d\x01\n" +
+	"\vSessionData\x12\x1c\n" +
+	"\tSessionID\x18\x01 \x01(\tR\tSessionID\x12#\n" +
+	"\x05State\x18\x02 \x01(\x0e2\r.SessionStateR\x05State\x12%\n" +
+	"\bGameData\x18\x03 \x01(\v2\t.GameDataR\bGameData\x12$\n" +
+	"\rWinningPlayer\x18\x04 \x01(\tR\rWinningPlayer\"\x92\x01\n" +
+	"\bEnvelope\x12 \n" +
+	"\x04Type\x18\x01 \x01(\x0e2\f.MessageTypeR\x04Type\x12#\n" +
+	"\aWelcome\x18\x02 \x01(\v2\a.PlayerH\x00R\aWelcome\x120\n" +
+	"\vSessionData\x18\x03 \x01(\v2\f.SessionDataH\x00R\vSessionDataB\r\n" +
+	"\vMessageData*\x95\x01\n" +
 	"\fSessionState\x12\x19\n" +
 	"\x15SESSION_STATE_UNKNOWN\x10\x00\x12\x1e\n" +
 	"\x1aSESSION_STATE_INITIALIZING\x10\x01\x12\x17\n" +
 	"\x13SESSION_STATE_SETUP\x10\x02\x12\x19\n" +
 	"\x15SESSION_STATE_RUNNING\x10\x03\x12\x16\n" +
-	"\x12SESSION_STATE_DONE\x10\x04B\rZ\v/gen/modelsb\x06proto3"
+	"\x12SESSION_STATE_DONE\x10\x04*`\n" +
+	"\vMessageType\x12\x18\n" +
+	"\x14MESSAGE_TYPE_UNKNOWN\x10\x00\x12\x18\n" +
+	"\x14MESSAGE_TYPE_WELCOME\x10\x01\x12\x1d\n" +
+	"\x19MESSAGE_TYPE_SESSION_DATA\x10\x02B\rZ\v/gen/modelsb\x06proto3"
 
 var (
 	file_session_proto_rawDescOnce sync.Once
@@ -155,19 +322,27 @@ func file_session_proto_rawDescGZIP() []byte {
 	return file_session_proto_rawDescData
 }
 
-var file_session_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_session_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_session_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_session_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_session_proto_goTypes = []any{
-	(SessionState)(0),           // 0: SessionState
-	(*SessionStateMessage)(nil), // 1: SessionStateMessage
+	(SessionState)(0),   // 0: SessionState
+	(MessageType)(0),    // 1: MessageType
+	(*SessionData)(nil), // 2: SessionData
+	(*Envelope)(nil),    // 3: Envelope
+	(*GameData)(nil),    // 4: GameData
+	(*Player)(nil),      // 5: Player
 }
 var file_session_proto_depIdxs = []int32{
-	0, // 0: SessionStateMessage.SessionState:type_name -> SessionState
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	0, // 0: SessionData.State:type_name -> SessionState
+	4, // 1: SessionData.GameData:type_name -> GameData
+	1, // 2: Envelope.Type:type_name -> MessageType
+	5, // 3: Envelope.Welcome:type_name -> Player
+	2, // 4: Envelope.SessionData:type_name -> SessionData
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_session_proto_init() }
@@ -175,13 +350,18 @@ func file_session_proto_init() {
 	if File_session_proto != nil {
 		return
 	}
+	file_game_proto_init()
+	file_session_proto_msgTypes[1].OneofWrappers = []any{
+		(*Envelope_Welcome)(nil),
+		(*Envelope_SessionData)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_session_proto_rawDesc), len(file_session_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   1,
+			NumEnums:      2,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

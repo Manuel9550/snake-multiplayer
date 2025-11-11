@@ -2,7 +2,10 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"net/http"
+	"os"
 
 	"github.com/Manuel9550/snake-multiplayer/snake-server/internal"
 	"github.com/gorilla/websocket"
@@ -17,14 +20,26 @@ var upgrader = websocket.Upgrader{
 }
 
 func main() {
-	sessionManager := internal.NewSessionManager()
+	logFile, err := os.OpenFile("server.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("Failed to open log file: %v", err)
+	}
+	defer logFile.Close() // Ensure the log file is closed when the program exits
 
+	// Create a MultiWriter that writes to both os.Stdout and the logFile
+	multiWriter := io.MultiWriter(os.Stdout, logFile)
+
+	// Create a new logger that uses the MultiWriter
+	// log.LstdFlags adds standard flags like date and time to log entries
+	logger := log.New(multiWriter, "APP: ", log.LstdFlags)
+
+	sessionManager := internal.NewSessionManager(logger)
 	go sessionManager.MonitorSessions()
 	http.HandleFunc("/ws", sessionManager.HandleConnection(&upgrader))
 	fmt.Println("WebSocket server started on :8080")
-	err := http.ListenAndServe(":8080", nil)
+	err = http.ListenAndServe(":8080", nil)
 	if err != nil {
-		fmt.Println("Error starting server:", err)
+		logger.Printf("Error starting server: %s", err.Error())
 	}
 
 }
