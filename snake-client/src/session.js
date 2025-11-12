@@ -2,16 +2,6 @@ import * as protohandler from "./protoHandler.js"
 import { Snake,Tuple,Entity,EntityTypes} from './snake';
 
 const connectionString = "ws://localhost:8080/ws";
-
-// enum State {
-//     STATE_UNKNOWN = 0;
-//     STATE_CONNECTING = 1;
-//     STATE_CONNECTED = 2;
-//     STATE_READY = 3;
-//     STATE_PLAYING = 4;
-//     STATE_DONE = 5;
-// }
-
 export const SessionState = Object.freeze({
     UNKNOWN: 0,
     CONNECTING: 1,
@@ -28,8 +18,8 @@ export class Session {
     playerEntity = null;
     players = new Map();
     entities = new Map();
-
-    
+    winningPlayerID = null;
+    textMap = new Map();
 
     constructor() {
             // Create WebSocket connection.
@@ -103,6 +93,7 @@ export class Session {
                 this.state = SessionState.DONE;
                 console.log("Session state: DONE");
                 if (sessionData.WinningPlayer) {
+                    this.winningPlayerID = sessionData.WinningPlayer;
                     console.log("Winner:", sessionData.WinningPlayer);
                 }
                 break;

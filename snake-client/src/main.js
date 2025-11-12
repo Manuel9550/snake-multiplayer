@@ -15,6 +15,7 @@ const eyeOffset = gridSize / 3;
 const gameSession = new Session();
 
 const textMap = new Map();
+var removeTextState = 0;
 
 (async () => {
   // Create a new application
@@ -46,10 +47,28 @@ const textMap = new Map();
         connectingText.x = startX;
         connectingText.y = startY - 50;
         app.stage.addChild(connectingText);
+        textMap.set("connecting",connectingText);
         break;
 
       case SessionState.CONNECTED:
       case SessionState.READY:
+        removeText(gameSession.state)
+        // Display "Hit Enter to ready up" instruction message
+        if (!textMap.has("instructions")) {
+          const instructionText = new Text({
+            text: 'Hit Enter to ready up',
+            style: new TextStyle({
+              fontSize: 20,
+              fill: 'yellow',
+              fontWeight: 'bold'
+            })
+          });
+          instructionText.x = startX;
+          instructionText.y = startY - 80;
+          app.stage.addChild(instructionText);
+          textMap.set("instructions",instructionText);
+        }
+
         // Display player states using Player.State from players collection
         let yOffset = startY - 50;
         gameSession.players.forEach((player, playerID) => {
@@ -66,19 +85,39 @@ const textMap = new Map();
               text: `Player ${playerID}: ${stringValue}`,
               style: new TextStyle({
                 fontSize: 18,
-                fill: player.colour || 'white'
+                fill: 'white'  // Changed to white
               })
             });
-            stateText.x = startX;
+            stateText.x = startX + 40;  // Offset to make room for snake icon
             stateText.y = yOffset;
             app.stage.addChild(stateText);
             textMap.set(playerID,stateText);
           }
+
+          // Draw small snake icon beside player status
+          const snakeIconX = startX + 10;
+          const snakeIconY = yOffset + 5;
+          const snakeIconSize = 15;
+
+          // Draw snake head (small square)
+          graphics.rect(snakeIconX, snakeIconY, snakeIconSize, snakeIconSize);
+          graphics.fill(player.colour);
+          graphics.stroke({ width: 1, color: player.colour });
+
+          // Draw small eyes on the snake icon
+          const eyeSize = 2;
+          const eyeOffsetIcon = snakeIconSize / 4;
+          graphics.circle(snakeIconX + eyeOffsetIcon, snakeIconY + eyeOffsetIcon, eyeSize);
+          graphics.fill("white");
+          graphics.circle(snakeIconX + snakeIconSize - eyeOffsetIcon, snakeIconY + eyeOffsetIcon, eyeSize);
+          graphics.fill("white");
+
           yOffset += 25;
         });
         break;
 
       case SessionState.PLAYING:
+        removeText(gameSession.state)
          // Draw the grid
         for (let row = 0; row < numRows; row++) {
           for (let col = 0; col < numCols; col++) {
@@ -113,6 +152,103 @@ const textMap = new Map();
         gameSession.players.forEach(player => {
           drawFace(graphics, player);
         });
+        break;
+
+      case SessionState.DONE:
+        removeText(gameSession.state)
+
+        // Display "Game Over" title
+        if (!textMap.has("gameOver")) {
+          const gameOverText = new Text({
+            text: 'GAME OVER',
+            style: new TextStyle({
+              fontSize: 48,
+              fill: 'red',
+              fontWeight: 'bold'
+            })
+          });
+          gameOverText.x = startX + 150;
+          gameOverText.y = startY - 50;
+          app.stage.addChild(gameOverText);
+          textMap.set("gameOver", gameOverText);
+        }
+
+        // Get winning player
+        const winningPlayer = gameSession.winningPlayerID ? gameSession.players.get(gameSession.winningPlayerID) : null;
+
+        if (winningPlayer) {
+          // Display winner ID
+          if (!textMap.has("winner")) {
+            const winnerText = new Text({
+              text: `Winner: Player ${winningPlayer.id}`,
+              style: new TextStyle({
+                fontSize: 32,
+                fill: winningPlayer.colour,
+                fontWeight: 'bold'
+              })
+            });
+            winnerText.x = startX + 150;
+            winnerText.y = startY + 20;
+            app.stage.addChild(winnerText);
+            textMap.set("winner", winnerText);
+          }
+
+          // Display score (snake length)
+          if (!textMap.has("score")) {
+            const score = winningPlayer.body.length;
+            const scoreText = new Text({
+              text: `Score: ${score}`,
+              style: new TextStyle({
+                fontSize: 28,
+                fill: 'white'
+              })
+            });
+            scoreText.x = startX + 200;
+            scoreText.y = startY + 60;
+            app.stage.addChild(scoreText);
+            textMap.set("score", scoreText);
+          }
+
+          // Draw the winning snake at full size
+          const snakeStartX = startX + 50;
+          const snakeStartY = startY + 120;
+
+          // Draw each body segment
+          winningPlayer.body.forEach((bodySegment, index) => {
+            const segmentX = snakeStartX + (index * gridSize);
+            const segmentY = snakeStartY;
+
+            graphics.rect(segmentX, segmentY, gridSize, gridSize);
+            graphics.fill(winningPlayer.colour);
+            graphics.stroke({ width: 2, color: "white" });
+          });
+
+          // Draw eyes on the head (first segment)
+          const headX = snakeStartX;
+          const headY = snakeStartY;
+          const eyeOffsetSnake = gridSize / 3;
+
+          graphics.circle(headX + eyeOffsetSnake, headY + eyeOffsetSnake, 4);
+          graphics.fill("white");
+          graphics.circle(headX + eyeOffsetSnake, headY + (eyeOffsetSnake * 2), 4);
+          graphics.fill("white");
+        }
+
+        // Display refresh instruction
+        if (!textMap.has("refresh")) {
+          const refreshText = new Text({
+            text: 'Refresh to join another session',
+            style: new TextStyle({
+              fontSize: 24,
+              fill: 'yellow',
+              fontStyle: 'italic'
+            })
+          });
+          refreshText.x = startX + 100;
+          refreshText.y = startY + 500;
+          app.stage.addChild(refreshText);
+          textMap.set("refresh", refreshText);
+        }
         break;
     }
 
@@ -224,4 +360,22 @@ function handlePlayerInput(event) {
         break;
     }
     protohandler.SendInputMessage(gameSession.playerEntity.id, direction, gameSession.socket)
+}
+
+function removeText(currentState) {
+  if (removeTextState === currentState) {
+    return
+  }
+
+  removeTextState = currentState
+
+  if (textMap.size > 0) {
+    for (const [key, textValue] of textMap) {
+      if (textValue.parent) {
+        textValue.parent.removeChild(textValue);
+      }
+      textValue.destroy()
+      textMap.delete(key);
+    }
+  }
 }

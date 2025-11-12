@@ -71,7 +71,7 @@ func (s *SessionManager) AddSession(session *Session) error {
 	}
 
 	s.sessions[session.SessionID] = session
-
+	s.logger.Printf("Created session: %s", session.SessionID)
 	return nil
 }
 

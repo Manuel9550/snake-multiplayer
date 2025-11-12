@@ -103,7 +103,7 @@ func NewSession(finishedChannel chan string, logger *log.Logger) *Session {
 		checkAllReadyCh:   make(chan *checkAllPlayersReadyCmd),
 		updateDirectionCh: make(chan *updatePlayerDirectionCmd),
 		updateStateCh:     make(chan *updatePlayerStateCmd),
-		shutdownCh:        make(chan struct{}),
+		shutdownCh:        make(chan struct{}, 1), // Buffered to allow non-blocking sends
 		getEntitiesCh:     make(chan *getEntitiesCmd),
 
 		logger: logger,
@@ -136,7 +136,6 @@ func (s *Session) run() {
 			cmd.resultCh <- players
 
 		case cmd := <-s.canJoinCh:
-			s.logger.Printf("Len players: %d, current state: %v", len(s.Players), s.State)
 			cmd.resultCh <- (len(s.Players) < maxPlayers && s.State == models.SessionState_SESSION_STATE_SETUP)
 
 		case cmd := <-s.checkAllReadyCh:
@@ -177,6 +176,7 @@ func (s *Session) run() {
 			cmd.resultCh <- s.Board.GetEntities()
 
 		case <-s.shutdownCh:
+			s.finishedChannel <- s.SessionID
 			return
 		}
 	}
@@ -213,23 +213,23 @@ func (s *Session) addPlayerInternal(newPlayer *Player) error {
 }
 
 func (s *Session) removePlayerInternal(playerID string) error {
+	s.logger.Printf("In removePlayerInternal: Want to release player: %s", playerID)
 	player, ok := s.Players[playerID]
 	if !ok {
 		return fmt.Errorf("Player %s no longer exists in session", playerID)
 	}
 
+	s.logger.Printf("Attempting to delete Player %s from session %s", player.ID, s.SessionID)
 	player.ShutDownPlayer()
 	delete(s.Players, playerID)
-	fmt.Printf("Player ID %s deleted from session: %s\n", player.ID, s.SessionID)
+	s.logger.Printf("Player ID %s deleted from session: %s\n", player.ID, s.SessionID)
 
+	// If all players have left, mark session as done and trigger shutdown
 	if len(s.Players) == 0 {
 		s.State = models.SessionState_SESSION_STATE_DONE
-		select {
-		case s.finishedChannel <- s.SessionID:
-			s.logger.Printf("sent message: %s", s.SessionID)
-		default:
-			s.logger.Println("no message sent")
-		}
+		s.logger.Printf("All players left session %s, marking as DONE", s.SessionID)
+		// Signal shutdown of the actor goroutine (buffered channel, won't block)
+		s.shutdownCh <- struct{}{}
 	}
 
 	return nil
@@ -347,10 +347,6 @@ func (s *Session) HandlePlayer(player *Player) {
 	} else {
 		s.logger.Printf("Player ID %s closed connection\n", player.ID)
 	}
-
-	// Either way, shut down the player
-	// No need for mutex - ReleasePlayer handles its own channel-based synchronization
-	s.ReleasePlayer(player.ID)
 }
 
 func (s *Session) ReadChannelMessages() {
@@ -442,7 +438,7 @@ func (s *Session) UpdateState() {
 		s.UpdateBoard(players)
 		gameDone, winningPlayer := s.CheckGameOver(players)
 		if gameDone {
-			s.EndSession(winningPlayer)
+			s.SetSessionDone(winningPlayer)
 			sessionData := s.GetSessionData(players, nil)
 			s.BroadcastMessage(sessionData)
 			return
@@ -452,7 +448,7 @@ func (s *Session) UpdateState() {
 	}
 }
 
-func (s *Session) EndSession(winningPlayer *Player) {
+func (s *Session) SetSessionDone(winningPlayer *Player) {
 	s.State = models.SessionState_SESSION_STATE_DONE
 	if winningPlayer != nil {
 		s.winningPlayerID = winningPlayer.ID
@@ -520,19 +516,38 @@ func (s *Session) GetEntities() []*Entity {
 }
 
 func (s *Session) DeleteSessionResources() {
-	players := s.GetPlayers()
+	// Don't use GetPlayers() since the actor goroutine may have already shut down
+	// Access players map directly
+	s.logger.Printf("Deleting session resources for session %s", s.SessionID)
 
-	// Release all players
-	for _, player := range players {
-		err := s.ReleasePlayer(player.ID)
+	// Shut down all player connections directly (not through channels)
+	for _, player := range s.Players {
+		s.logger.Printf("Shutting down player %s", player.ID)
+		err := player.ShutDownPlayer()
 		if err != nil {
-			s.logger.Printf("Error releasing player ID %s:%s", player.ID, err.Error())
+			s.logger.Printf("Error shutting down player ID %s: %s", player.ID, err.Error())
 		}
 	}
 
-	close(s.PlayerInputChannel)
+	// Clear the players map
+	s.Players = make(map[string]*Player)
 
-	close(s.shutdownCh) // Shut down the actor goroutine
+	// Close channels if not already closed
+	// Note: PlayerInputChannel and shutdownCh might already be closed
+	// We need to be careful about closing them again
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Printf("Recovered from panic while closing channels: %v", r)
+		}
+	}()
+
+	// Try to close PlayerInputChannel
+	select {
+	case <-s.PlayerInputChannel:
+		// Channel already closed, do nothing
+	default:
+		close(s.PlayerInputChannel)
+	}
 }
 
 func (s *Session) GetSessionData(players []*Player, entities []*Entity) []byte {
