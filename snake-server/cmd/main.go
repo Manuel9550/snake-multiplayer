@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -36,7 +35,7 @@ func main() {
 	sessionManager := internal.NewSessionManager(logger)
 	go sessionManager.MonitorSessions()
 	http.HandleFunc("/ws", sessionManager.HandleConnection(&upgrader))
-	fmt.Println("WebSocket server started on :8080")
+	logger.Printf("WebSocket server started on :8080")
 	err = http.ListenAndServe(":8080", nil)
 	if err != nil {
 		logger.Printf("Error starting server: %s", err.Error())

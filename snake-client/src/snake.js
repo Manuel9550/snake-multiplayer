@@ -22,12 +22,14 @@ export class Snake {
     direction = 0
     body = [];
     colour = "white"
+    state = 0
     constructor(id,x,y,colour) {
         this.id = id;
         this.x = x;
         this.y = y;
         this.body.push(new Tuple(x,y));
         this.colour = colour;
+        this.state = 0;
     }
 
     getBody() {

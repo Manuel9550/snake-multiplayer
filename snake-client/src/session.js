@@ -1,5 +1,5 @@
 import * as protohandler from "./protoHandler.js"
-import { Snake,Tuple,Entity,EntityTypes, PlayerState} from './snake';
+import { Snake,Tuple,Entity,EntityTypes} from './snake';
 
 const connectionString = "ws://localhost:8080/ws";
 
@@ -27,7 +27,6 @@ export class Session {
     socket = null;
     playerEntity = null;
     players = new Map();
-    playerStates = new Map();
     entities = new Map();
 
     
@@ -50,45 +49,25 @@ export class Session {
 
     handleProtoMessage(event) {
         const result = protohandler.DecodeAndValidateEnvelope(event.data);
-        
+
         if (!result.isValid) {
             console.error("Failed to decode envelope:", result.error);
             return;
         }
-        
-        // The server changing the state has priority, no matter the state of the session
-        if (result.type === "MESSAGE_TYPE_SERVER_STATE") {
-            console.log("SERVER SENT STATE")
-            const serverState = result.data;
-            this.updateServerState(serverState);
+
+        // Handle Welcome message - sent when player first connects
+        if (result.type === "MESSAGE_TYPE_WELCOME") {
+            const playerData = result.data;
+            this.newPlayer(playerData);
+            return;
         }
-        
-        // Depending on the state, we only care about certain message types
-        switch (this.state) {
-            case SessionState.CONNECTING:
-                // Only care about Welcome and PlayerStates messages
-                if (result.type === "MESSAGE_TYPE_WELCOME") {
-                    const playerData = result.data;
-                    this.newPlayer(playerData);
-                }
-                if (result.type === "MESSAGE_TYPE_PLAYER_STATES") {
-                    const playerStates = result.data;
-                    this.updatePlayerStates(playerStates);
-                }
-                break;
-            case SessionState.CONNECTED:
-                if (result.type === "MESSAGE_TYPE_PLAYER_STATES") {
-                    const playerStates = result.data;
-                    this.updatePlayerStates(playerStates);
-                }
-                break;
-            case SessionState.PLAYING:
-                if (result.type === "MESSAGE_TYPE_GAME_DATA") {
-                    const gameData = result.data;
-                    this.updateGameData(gameData);
-                }
-                break;
-            }
+
+        // Handle SessionData message - contains session state and game data
+        if (result.type === "MESSAGE_TYPE_SESSION_DATA") {
+            const sessionData = result.data;
+            this.updateSessionData(sessionData);
+            return;
+        }
     }
 
     newPlayer(playerData) {
@@ -99,36 +78,41 @@ export class Session {
         console.log(this.playerEntity);
     }
 
-    updatePlayerStates(statesData) {
-        console.log(statesData)
-        const stateArray = Array.from(statesData.PlayerStates) 
-        stateArray.forEach(playerState => {
-            if (this.playerStates.has(playerState.PlayerID)) {
-                console.log("Dont have " + playerState.PlayerID);
-                // Update existing player state
-                const existingPlayerState = this.playerStates.get(playerState.PlayerID);
-                // The playerID and colour shouldn't change, just update the state
-                existingPlayerState.state = playerState.State;
-            } else {
-                console.log("Have " + playerState.PlayerID);
-                // Create new player state only if it doesn't exist
-                const newPlayerState = new PlayerState(playerState.PlayerID, playerState.State, playerState.Colour);
-                this.playerStates.set(newPlayerState.playerID, newPlayerState);
-                console.log(this.playerStates)
-            }
-        });
-    }
+    updateSessionData(sessionData) {
+        console.log("Received SessionData:", sessionData);
 
-    updateServerState(serverState) {
-       switch(serverState.ServerState) {
-        case 3:
-            this.state = SessionState.PLAYING
-            console.log("SERVER IS NOW PLAYING")
-            break;
-        case 4:
-            console.log("SERVER IS NOW DONE")
-            this.state = SessionState.DONE
-            break;
+        // Update session state based on server's SessionState
+        // Map server SessionState to client SessionState
+        switch(sessionData.State) {
+            case 1: // SESSION_STATE_INITIALIZING
+                this.state = SessionState.CONNECTING;
+                console.log("Session state: INITIALIZING");
+                break;
+            case 2: // SESSION_STATE_SETUP
+                // Check if we're already in READY state, otherwise set to CONNECTED
+                if (this.state !== SessionState.READY) {
+                    this.state = SessionState.CONNECTED;
+                }
+                console.log("Session state: SETUP");
+                break;
+            case 3: // SESSION_STATE_RUNNING
+                this.state = SessionState.PLAYING;
+                console.log("Session state: RUNNING");
+                break;
+            case 4: // SESSION_STATE_DONE
+                this.state = SessionState.DONE;
+                console.log("Session state: DONE");
+                if (sessionData.WinningPlayer) {
+                    console.log("Winner:", sessionData.WinningPlayer);
+                }
+                break;
+            default:
+                console.warn("Unknown session state:", sessionData.State);
+        }
+
+        // Update game data if present
+        if (sessionData.GameData) {
+            this.updateGameData(sessionData.GameData);
         }
     }
 
@@ -141,11 +125,13 @@ export class Session {
                 existingPlayer.x = playerData.Head.X;
                 existingPlayer.y = playerData.Head.Y;
                 existingPlayer.body = playerData.Body.map(bodyField => new Tuple(bodyField.X, bodyField.Y));
+                existingPlayer.state = playerData.State || 0;
             } else {
                 // Create new player only if it doesn't exist
                 const newPlayer = new Snake(playerData.PlayerID, playerData.Head.X, playerData.Head.Y, playerData.Colour);
                 newPlayer.direction = playerData.PlayerDirection;
                 newPlayer.body = playerData.Body.map(bodyField => new Tuple(bodyField.X, bodyField.Y));
+                newPlayer.state = playerData.State || 0;
                 this.players.set(playerData.PlayerID, newPlayer);
                 console.log(newPlayer);
             }

@@ -50,20 +50,23 @@ const textMap = new Map();
 
       case SessionState.CONNECTED:
       case SessionState.READY:
-        // Display player states
+        // Display player states using Player.State from players collection
         let yOffset = startY - 50;
-        gameSession.playerStates.forEach((playerState, playerID) => {
-          let stringValue = Object.keys(SessionState).find(key => SessionState[key] === playerState.state);
+        gameSession.players.forEach((player, playerID) => {
+          // Map PlayerState enum to readable string
+          const stateNames = ['UNKNOWN', 'CONNECTING', 'CONNECTED', 'READY', 'PLAYING', 'DONE'];
+          const stateValue = player.state || 2; // Default to CONNECTED if not set
+          const stringValue = stateNames[stateValue] || 'UNKNOWN';
+
           if(textMap.has(playerID)) {
             let textValue = textMap.get(playerID)
             textValue.text = `Player ${playerID}: ${stringValue}`
           } else {
-            //let stringValue = Object.keys(SessionState).find(key => SessionState[key] === playerState.state);
             const stateText = new Text({
               text: `Player ${playerID}: ${stringValue}`,
               style: new TextStyle({
                 fontSize: 18,
-                fill: playerState.colour || 'white'
+                fill: player.colour || 'white'
               })
             });
             stateText.x = startX;
@@ -199,7 +202,8 @@ document.addEventListener('keyup', (event) => {
 
 function handlePlayerReadyUp(event) {
   if (event.key == "Enter") {
-    protohandler.SendStateMessage(gameSession.playerEntity,3,gameSession.socket)
+    protohandler.SendReadyUpMessage(gameSession.playerEntity.id, gameSession.socket)
+    gameSession.state = SessionState.READY;
   }
 }
 

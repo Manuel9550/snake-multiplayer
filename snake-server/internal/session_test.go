@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Manuel9550/snake-multiplayer/snake-server/gen/models"
+	"google.golang.org/protobuf/proto"
 )
 
 // Helper function to create a test player for direct map manipulation
@@ -43,10 +44,6 @@ func TestNewSession(t *testing.T) {
 
 	if session.Players == nil {
 		t.Error("Expected Players map to be initialized")
-	}
-
-	if session.Entities == nil {
-		t.Error("Expected Entities map to be initialized")
 	}
 }
 
@@ -576,5 +573,225 @@ func TestRemoveLastPlayerMarksSessionDone(t *testing.T) {
 		}
 	case <-time.After(100 * time.Millisecond):
 		t.Error("Expected finished channel to receive session ID, but timed out")
+	}
+}
+
+// TestGetSessionData tests that GetSessionData returns valid protobuf with correct data
+func TestGetSessionData(t *testing.T) {
+	finishedCh := make(chan string, 1)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
+	defer session.DeleteSessionResources()
+
+	// Set session state
+	session.State = models.SessionState_SESSION_STATE_SETUP
+
+	// Add test players
+	player1 := createTestPlayer("player-1")
+	player1.X = 5
+	player1.Y = 5
+	player1.Direction = models.Direction_DIRECTION_UP
+
+	player2 := createTestPlayer("player-2")
+	player2.X = 10
+	player2.Y = 10
+	player2.Direction = models.Direction_DIRECTION_DOWN
+
+	// Add players via actor channel
+	for _, p := range []*Player{player1, player2} {
+		resultCh := make(chan error)
+		session.addPlayerCh <- &addPlayerCmd{
+			player:   p,
+			resultCh: resultCh,
+		}
+		<-resultCh
+	}
+
+	// Update player2 state to READY
+	updateResultCh := make(chan error)
+	session.updateStateCh <- &updatePlayerStateCmd{
+		playerID: "player-2",
+		state:    models.PlayerState_STATE_READY,
+		resultCh: updateResultCh,
+	}
+	<-updateResultCh
+
+	// Create test entities and add to session
+	entity1 := NewEntity("player-1", models.EntityType_ENTITY_TYPE_BODY, Location{X: 5, Y: 5})
+	entity2 := NewEntity("player-2", models.EntityType_ENTITY_TYPE_BODY, Location{X: 10, Y: 10})
+	entity3 := NewEntity("", models.EntityType_ENTITY_TYPE_POINT, Location{X: 15, Y: 15})
+
+	// Add entities directly to session for testing
+	session.Board.Entities = map[Location]Entity{}
+	session.Board.Entities[entity1.Location] = entity1
+	session.Board.Entities[entity2.Location] = entity2
+	session.Board.Entities[entity3.Location] = entity3
+
+	// Call GetSessionData, explicitely not passing in the players/entities
+	data := session.GetSessionData(nil, nil)
+
+	if len(data) == 0 {
+		t.Fatal("Expected non-empty data from GetSessionData")
+	}
+
+	// Unmarshal the data
+	var envelope models.Envelope
+	err := proto.Unmarshal(data, &envelope)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal envelope: %v", err)
+	}
+
+	// Verify envelope type
+	if envelope.Type != models.MessageType_MESSAGE_TYPE_SESSION_DATA {
+		t.Errorf("Expected MessageType SESSION_DATA, got %v", envelope.Type)
+	}
+
+	// Extract SessionData
+	sessionData := envelope.GetSessionData()
+	if sessionData == nil {
+		t.Fatal("Expected SessionData in envelope, got nil")
+	}
+
+	// Verify SessionID
+	if sessionData.SessionID != session.SessionID {
+		t.Errorf("Expected SessionID %s, got %s", session.SessionID, sessionData.SessionID)
+	}
+
+	// Verify State
+	if sessionData.State != models.SessionState_SESSION_STATE_SETUP {
+		t.Errorf("Expected State SETUP, got %v", sessionData.State)
+	}
+
+	// Verify WinningPlayer (should be empty for non-done session)
+	if sessionData.WinningPlayer != "" {
+		t.Errorf("Expected empty WinningPlayer, got %s", sessionData.WinningPlayer)
+	}
+
+	// Verify GameData exists
+	gameData := sessionData.GameData
+	if gameData == nil {
+		t.Fatal("Expected GameData in SessionData, got nil")
+	}
+
+	// Verify PlayerData
+	if len(gameData.PlayerData) != 2 {
+		t.Fatalf("Expected 2 players in GameData, got %d", len(gameData.PlayerData))
+	}
+
+	// Check player1 data
+	var foundPlayer1, foundPlayer2 bool
+	for _, p := range gameData.PlayerData {
+		if p.PlayerID == "player-1" {
+			foundPlayer1 = true
+			if p.Colour != "blue" {
+				t.Errorf("Expected player-1 colour blue, got %s", p.Colour)
+			}
+			if p.State != models.PlayerState_STATE_CONNECTED {
+				t.Errorf("Expected player-1 state CONNECTED, got %v", p.State)
+			}
+			if p.Head.X != 5 || p.Head.Y != 5 {
+				t.Errorf("Expected player-1 head at (5,5), got (%d,%d)", p.Head.X, p.Head.Y)
+			}
+			if p.PlayerDirection != models.Direction_DIRECTION_UP {
+				t.Errorf("Expected player-1 direction UP, got %v", p.PlayerDirection)
+			}
+		}
+		if p.PlayerID == "player-2" {
+			foundPlayer2 = true
+			if p.Colour != "green" {
+				t.Errorf("Expected player-2 colour green, got %s", p.Colour)
+			}
+			if p.State != models.PlayerState_STATE_READY {
+				t.Errorf("Expected player-2 state READY, got %v", p.State)
+			}
+			if p.Head.X != 10 || p.Head.Y != 10 {
+				t.Errorf("Expected player-2 head at (10,10), got (%d,%d)", p.Head.X, p.Head.Y)
+			}
+			if p.PlayerDirection != models.Direction_DIRECTION_DOWN {
+				t.Errorf("Expected player-2 direction DOWN, got %v", p.PlayerDirection)
+			}
+		}
+	}
+
+	if !foundPlayer1 {
+		t.Error("player-1 not found in GameData.PlayerData")
+	}
+	if !foundPlayer2 {
+		t.Error("player-2 not found in GameData.PlayerData")
+	}
+
+	// Verify EntityData
+	if len(gameData.EntityData) != 3 {
+		t.Fatalf("Expected 3 entities in GameData, got %d", len(gameData.EntityData))
+	}
+
+	// Check entities
+	entityTypes := make(map[models.EntityType]int)
+	for _, e := range gameData.EntityData {
+		entityTypes[e.Type]++
+
+		// Verify entity structure
+		if e.ID == "" {
+			t.Error("Expected non-empty entity ID")
+		}
+		if e.Body == nil {
+			t.Error("Expected entity body to be non-nil")
+		}
+	}
+
+	// Should have 2 BODY entities and 1 POINT entity
+	if entityTypes[models.EntityType_ENTITY_TYPE_BODY] != 2 {
+		t.Errorf("Expected 2 BODY entities, got %d", entityTypes[models.EntityType_ENTITY_TYPE_BODY])
+	}
+	if entityTypes[models.EntityType_ENTITY_TYPE_POINT] != 1 {
+		t.Errorf("Expected 1 POINT entity, got %d", entityTypes[models.EntityType_ENTITY_TYPE_POINT])
+	}
+}
+
+// TestGetSessionDataWithWinningPlayer tests GetSessionData when session is done with a winner
+func TestGetSessionDataWithWinningPlayer(t *testing.T) {
+	finishedCh := make(chan string, 1)
+	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	session := NewSession(finishedCh, logger)
+	defer session.DeleteSessionResources()
+
+	// Set session to DONE state
+	session.State = models.SessionState_SESSION_STATE_DONE
+	session.winningPlayerID = "player-1"
+
+	// Add a player
+	player := createTestPlayer("player-1")
+	player.State = models.PlayerState_STATE_DONE
+
+	resultCh := make(chan error)
+	session.addPlayerCh <- &addPlayerCmd{
+		player:   player,
+		resultCh: resultCh,
+	}
+	<-resultCh
+
+	// Call GetSessionData
+	data := session.GetSessionData(nil, []*Entity{})
+
+	// Unmarshal and verify
+	var envelope models.Envelope
+	err := proto.Unmarshal(data, &envelope)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal envelope: %v", err)
+	}
+
+	sessionData := envelope.GetSessionData()
+	if sessionData == nil {
+		t.Fatal("Expected SessionData in envelope")
+	}
+
+	// Verify session is DONE
+	if sessionData.State != models.SessionState_SESSION_STATE_DONE {
+		t.Errorf("Expected State DONE, got %v", sessionData.State)
+	}
+
+	// Verify WinningPlayer is set
+	if sessionData.WinningPlayer != "player-1" {
+		t.Errorf("Expected WinningPlayer 'player-1', got '%s'", sessionData.WinningPlayer)
 	}
 }

@@ -148,3 +148,11 @@ func (b *Board) GetRandomFreeSpace() Location {
 		}
 	}
 }
+
+func (b *Board) GetEntities() []*Entity {
+	returnEntities := make([]*Entity, 0)
+	for _, entity := range b.Entities {
+		returnEntities = append(returnEntities, &entity)
+	}
+	return returnEntities
+}

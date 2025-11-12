@@ -60,7 +60,6 @@ type getEntitiesCmd struct {
 
 type Session struct {
 	SessionID            string
-	Entities             map[string]*Entity
 	Players              map[string]*Player
 	PlayerInputChannel   chan []byte
 	Board                *Board
@@ -88,7 +87,6 @@ type Session struct {
 func NewSession(finishedChannel chan string, logger *log.Logger) *Session {
 	session := Session{
 		SessionID:            uuid.New().String(),
-		Entities:             make(map[string]*Entity, 0),
 		Players:              make(map[string]*Player, 0),
 		Board:                &Board{},
 		PlayerInputChannel:   make(chan []byte),
@@ -176,11 +174,7 @@ func (s *Session) run() {
 			}
 
 		case cmd := <-s.getEntitiesCh:
-			entities := make([]*Entity, 0, len(s.Entities))
-			for _, e := range s.Entities {
-				entities = append(entities, e)
-			}
-			cmd.resultCh <- entities
+			cmd.resultCh <- s.Board.GetEntities()
 
 		case <-s.shutdownCh:
 			return
@@ -580,5 +574,6 @@ func (s *Session) GetSessionData(players []*Player, entities []*Entity) []byte {
 		s.logger.Printf("Error marshalling session data: %s", err.Error())
 	}
 
+	s.logger.Printf("Sending %d entities", len(entities))
 	return data
 }
