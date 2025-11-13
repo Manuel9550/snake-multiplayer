@@ -155,7 +155,6 @@ var removeTextState = 0;
           }
         }
 
-        // Draw entities from gameSession
         gameSession.entities.forEach(entity => {
           var colour = "white";
           switch (entity.type) {

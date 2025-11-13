@@ -32,6 +32,14 @@ func main() {
 	// log.LstdFlags adds standard flags like date and time to log entries
 	logger := log.New(multiWriter, "APP: ", log.LstdFlags)
 
+	// Try to load the pre-made layouts
+	internal.PreMadeLayouts, err = internal.InitializePremadelayouts()
+	if err != nil {
+		// Just set to empty slice
+		logger.Printf("Failed to load Premade Layouts: %v", err)
+		internal.PreMadeLayouts = make([]internal.PreMadeLayout, 0)
+	}
+
 	sessionManager := internal.NewSessionManager(logger)
 	go sessionManager.MonitorSessions()
 	http.HandleFunc("/ws", sessionManager.HandleConnection(&upgrader))

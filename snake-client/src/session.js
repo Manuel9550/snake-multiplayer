@@ -64,12 +64,9 @@ export class Session {
         this.playerEntity = new Snake(playerData.PlayerID, 0, 0, playerData.Colour);
         this.players.set(playerData.PlayerID, this.playerEntity);
         this.state = SessionState.CONNECTED;
-        console.log("New player: ");
-        console.log(this.playerEntity);
     }
 
     updateSessionData(sessionData) {
-        console.log("Received SessionData:", sessionData);
 
         // Update session state based on server's SessionState
         // Map server SessionState to client SessionState
@@ -124,15 +121,12 @@ export class Session {
                 newPlayer.body = playerData.Body.map(bodyField => new Tuple(bodyField.X, bodyField.Y));
                 newPlayer.state = playerData.State || 0;
                 this.players.set(playerData.PlayerID, newPlayer);
-                console.log(newPlayer);
             }
         });
         
         const entitiesData = gameData.EntityData;
         // The server sends all active entities: we may need to prune entities that are no longer active
         let activeMap = new Map()
-        console.log("server sent " + entitiesData.length + " entities")
-        console.log(entitiesData)
         entitiesData.forEach(entityData => {
             activeMap.set(entityData.ID,true);
             if (this.entities.has(entityData.ID)) {
