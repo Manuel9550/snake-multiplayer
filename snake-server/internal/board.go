@@ -23,27 +23,40 @@ func (b *Board) Initialize(players []*Player) {
 	b.Entities = make(map[Location]Entity)
 
 	for playerNumber, player := range players {
+		var trailingLocation = Location{}
 		switch playerNumber {
 		case 0:
-			player.X = 1
-			player.Y = 1
+			player.X = 2
+			player.Y = 2
 			player.Direction = models.Direction_DIRECTION_RIGHT
+			trailingLocation.X = player.X - 1
+			trailingLocation.Y = player.Y
 		case 1:
-			player.X = numColumns - 2
-			player.Y = 1
+			player.X = numColumns - 3
+			player.Y = 2
 			player.Direction = models.Direction_DIRECTION_DOWN
+			trailingLocation.X = player.X
+			trailingLocation.Y = player.Y - 1
 		case 2:
-			player.X = numColumns - 2
-			player.Y = numRows - 2
+			player.X = numColumns - 3
+			player.Y = numRows - 3
 			player.Direction = models.Direction_DIRECTION_LEFT
+			trailingLocation.X = player.X + 1
+			trailingLocation.Y = player.Y
 		case 3:
-			player.X = 1
-			player.Y = numRows - 2
+			player.X = 2
+			player.Y = numRows - 3
 			player.Direction = models.Direction_DIRECTION_UP
+			trailingLocation.X = player.X
+			trailingLocation.Y = player.Y + 1
 		}
 		location := Location{X: player.X, Y: player.Y}
 		player.BodyQueue.Enqueue(location)
+		player.BodyQueue.Enqueue(trailingLocation)
 		b.Entities[location] = NewEntity(player.ID, models.EntityType_ENTITY_TYPE_BODY, location)
+		b.Entities[trailingLocation] = NewEntity(player.ID, models.EntityType_ENTITY_TYPE_BODY, trailingLocation)
+		player.State = models.PlayerState_STATE_PLAYING
+		player.Length = 2
 	}
 
 	for i := 0; i < len(players)+1; i++ {

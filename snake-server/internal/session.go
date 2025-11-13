@@ -347,6 +347,9 @@ func (s *Session) HandlePlayer(player *Player) {
 	} else {
 		s.logger.Printf("Player ID %s closed connection\n", player.ID)
 	}
+
+	s.ReleasePlayer(player.ID)
+
 }
 
 func (s *Session) ReadChannelMessages() {

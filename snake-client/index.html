@@ -5,12 +5,22 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="/style.css">
-    <title>Snake</title>
+    <title>Snake Online</title>
 </head>
 
 <body>
+    <h1 id="title">Snake Online</h1>
     <div id="app">
         <div id="pixi-container"></div>
+    </div>
+    <div id="instructions">
+        <h2>How to Play</h2>
+        <ul>
+            <li>Once you're in a session, hit <strong>Enter</strong> to ready up</li>
+            <li>Game begins once at least 2 players are present and 'Ready'</li>
+            <li>Control your snake direction using <strong>WASD</strong> keys</li>
+            <li>Collect white circles, avoid everything else</li>
+        </ul>
     </div>
     <script type="module" src="/src/main.js"></script>
 </body>

@@ -94,7 +94,6 @@ type Player struct {
 
 func NewPlayer(newConnection *websocket.Conn) *Player {
 	bodyQueue := Queue{}
-	bodyQueue.Enqueue(Location{X: 0, Y: 0})
 	return &Player{
 		ID:        uuid.New().String(),
 		conn:      newConnection,

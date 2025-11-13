@@ -21,13 +21,24 @@ var removeTextState = 0;
   // Create a new application
   const app = new Application();
 
+  // Calculate canvas size: game board + stats panel + margins
+  const canvasWidth = startX + (numCols * gridSize) + 300 + 100; // board + stats + padding
+  const canvasHeight = startY + (numRows * gridSize) + 100; // board + bottom padding
+
   // Initialize the application
-  await app.init({ background: 'black', resizeTo: window });
+  await app.init({
+    background: 'black',
+    width: canvasWidth,
+    height: canvasHeight
+  });
 
   // Append the application canvas to the document body
   document.getElementById("pixi-container").appendChild(app.canvas)
-  
+
   const graphics = new Graphics();
+
+  // Add graphics to stage once at the beginning so it stays at the back
+  app.stage.addChild(graphics);
 
   // Listen for animate update
   app.ticker.add((time) => {
@@ -77,15 +88,25 @@ var removeTextState = 0;
           const stateValue = player.state || 2; // Default to CONNECTED if not set
           const stringValue = stateNames[stateValue] || 'UNKNOWN';
 
+          // Check if this is the current player
+          const isCurrentPlayer = gameSession.playerEntity && player.id === gameSession.playerEntity.id;
+          const playerLabel = isCurrentPlayer ? `YOU (${playerID})` : `Player ${playerID}`;
+
           if(textMap.has(playerID)) {
             let textValue = textMap.get(playerID)
-            textValue.text = `Player ${playerID}: ${stringValue}`
+            textValue.text = `${playerLabel}: ${stringValue}`
+            // Update style for current player
+            if (isCurrentPlayer) {
+              textValue.style.fill = 'yellow';
+              textValue.style.fontWeight = 'bold';
+            }
           } else {
             const stateText = new Text({
-              text: `Player ${playerID}: ${stringValue}`,
+              text: `${playerLabel}: ${stringValue}`,
               style: new TextStyle({
                 fontSize: 18,
-                fill: 'white'  // Changed to white
+                fill: isCurrentPlayer ? 'yellow' : 'white',
+                fontWeight: isCurrentPlayer ? 'bold' : 'normal'
               })
             });
             stateText.x = startX + 40;  // Offset to make room for snake icon
@@ -98,6 +119,12 @@ var removeTextState = 0;
           const snakeIconX = startX + 10;
           const snakeIconY = yOffset + 5;
           const snakeIconSize = 15;
+
+          // If this is the current player, draw a highlight box around their icon
+          if (isCurrentPlayer) {
+            graphics.rect(snakeIconX - 3, snakeIconY - 3, snakeIconSize + 6, snakeIconSize + 6);
+            graphics.stroke({ width: 2, color: 'yellow' });
+          }
 
           // Draw snake head (small square)
           graphics.rect(snakeIconX, snakeIconY, snakeIconSize, snakeIconSize);
@@ -152,6 +179,140 @@ var removeTextState = 0;
         gameSession.players.forEach(player => {
           drawFace(graphics, player);
         });
+
+        // Draw player stats panel on the right side
+        const statsX = startX + (numCols * gridSize) + 40;
+        const statsY = startY;
+        const statsWidth = 250;
+        const statsPanelHeight = 400;
+
+        // Draw stats panel background
+        graphics.rect(statsX, statsY, statsWidth, statsPanelHeight);
+        graphics.fill(0x1a1a1a);
+        graphics.stroke({ width: 2, color: 0x333333 });
+
+        // Draw "Players" title
+        if (!textMap.has("stats-title")) {
+          const titleText = new Text({
+            text: 'Players',
+            style: new TextStyle({
+              fontSize: 24,
+              fill: '#00ff00',
+              fontWeight: 'bold'
+            })
+          });
+          titleText.x = statsX + (statsWidth / 2) - 45;
+          titleText.y = statsY + 10;
+          app.stage.addChild(titleText);
+          textMap.set("stats-title", titleText);
+        }
+
+        // Draw each player's stats
+        let playerYOffset = statsY + 50;
+        const playerEntryHeight = 80;
+
+        gameSession.players.forEach((player, playerID) => {
+          const isCurrentPlayer = gameSession.playerEntity && player.id === gameSession.playerEntity.id;
+
+          // Draw player entry background
+          graphics.rect(statsX + 10, playerYOffset, statsWidth - 20, playerEntryHeight);
+          graphics.fill(isCurrentPlayer ? 0x1a1a00 : 0x0a0a0a);
+          graphics.stroke({ width: isCurrentPlayer ? 2 : 1, color: isCurrentPlayer ? 0xffff00 : 0x444444 });
+
+          // Draw player name
+          const playerNameKey = `stat-name-${playerID}`;
+          const playerLabel = isCurrentPlayer ? `YOU (${playerID.substring(0, 8)})` : `Player ${playerID.substring(0, 8)}`;
+
+          if (!textMap.has(playerNameKey)) {
+            const nameText = new Text({
+              text: playerLabel,
+              style: new TextStyle({
+                fontSize: 14,
+                fill: isCurrentPlayer ? '#ffff00' : '#ffffff',
+                fontWeight: 'bold'
+              })
+            });
+            nameText.x = statsX + 20;
+            nameText.y = playerYOffset + 5;
+            app.stage.addChild(nameText);
+            textMap.set(playerNameKey, nameText);
+          } else {
+            const nameText = textMap.get(playerNameKey);
+            nameText.text = playerLabel;
+            nameText.y = playerYOffset + 5;
+          }
+
+          // Draw state
+          const stateKey = `stat-state-${playerID}`;
+          const stateNames = ['UNKNOWN', 'CONNECTING', 'CONNECTED', 'READY', 'PLAYING', 'DONE'];
+          const stateValue = player.state || 4;
+          const stateText = stateNames[stateValue] || 'UNKNOWN';
+
+          if (!textMap.has(stateKey)) {
+            const stateTextObj = new Text({
+              text: `State: ${stateText}`,
+              style: new TextStyle({
+                fontSize: 11,
+                fill: '#aaaaaa'
+              })
+            });
+            stateTextObj.x = statsX + 20;
+            stateTextObj.y = playerYOffset + 23;
+            app.stage.addChild(stateTextObj);
+            textMap.set(stateKey, stateTextObj);
+          } else {
+            const stateTextObj = textMap.get(stateKey);
+            stateTextObj.text = `State: ${stateText}`;
+            stateTextObj.y = playerYOffset + 23;
+          }
+
+          // Draw score (snake length)
+          const scoreKey = `stat-score-${playerID}`;
+          const score = player.body ? player.body.length : 0;
+
+          if (!textMap.has(scoreKey)) {
+            const scoreTextObj = new Text({
+              text: `Score: ${score}`,
+              style: new TextStyle({
+                fontSize: 11,
+                fill: '#aaaaaa'
+              })
+            });
+            scoreTextObj.x = statsX + 20;
+            scoreTextObj.y = playerYOffset + 38;
+            app.stage.addChild(scoreTextObj);
+            textMap.set(scoreKey, scoreTextObj);
+          } else {
+            const scoreTextObj = textMap.get(scoreKey);
+            scoreTextObj.text = `Score: ${score}`;
+            scoreTextObj.y = playerYOffset + 38;
+          }
+
+          // Draw mini snake representation
+          const miniSnakeX = statsX + 20;
+          const miniSnakeY = playerYOffset + 53;
+          const miniSegmentSize = 8;
+          const maxSegments = Math.min(player.body ? player.body.length : 0, 20);
+
+          for (let i = 0; i < maxSegments; i++) {
+            graphics.rect(miniSnakeX + (i * (miniSegmentSize + 1)), miniSnakeY, miniSegmentSize, miniSegmentSize);
+            graphics.fill(player.colour);
+            graphics.stroke({ width: 1, color: player.colour });
+          }
+
+          // Draw eyes on first segment
+          if (maxSegments > 0) {
+            const eyeSize = 1.5;
+            const eyeOffsetMini = miniSegmentSize / 4;
+            graphics.circle(miniSnakeX + eyeOffsetMini, miniSnakeY + eyeOffsetMini, eyeSize);
+            graphics.fill("white");
+            graphics.circle(miniSnakeX + miniSegmentSize - eyeOffsetMini, miniSnakeY + eyeOffsetMini, eyeSize);
+            graphics.fill("white");
+          }
+
+          playerYOffset += playerEntryHeight + 10;
+        });
+
         break;
 
       case SessionState.DONE:
@@ -252,7 +413,7 @@ var removeTextState = 0;
         break;
     }
 
-    app.stage.addChild(graphics);
+    // Graphics is already added to stage at the beginning, no need to add it again
   });
 })();
 
