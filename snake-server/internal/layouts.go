@@ -19,12 +19,11 @@ type PreMadeLayout struct {
 // Only should be called once.
 // If the premade layouts weren't initialized, the slice will be nil
 // If it has (or errored out while being initialized) it won't be nil
-func InitializePremadelayouts() ([]PreMadeLayout, error) {
-	premadeLayouts := make([]PreMadeLayout, 0)
-	dirPath := "./images"
-	files, err := os.ReadDir(dirPath)
+func InitializePremadelayouts(directory string) error {
+	PreMadeLayouts = make([]PreMadeLayout, 0)
+	files, err := os.ReadDir(directory)
 	if err != nil {
-		return nil, fmt.Errorf("Error reading directory: %v\n", err)
+		return fmt.Errorf("error reading directory: %v", err)
 	}
 
 	for _, file := range files {
@@ -32,21 +31,21 @@ func InitializePremadelayouts() ([]PreMadeLayout, error) {
 			ext := strings.ToLower(filepath.Ext(file.Name()))
 			if ext == ".png" {
 				// Try to open and parse this file
-				fullFileLocation := fmt.Sprintf("%s/%s", dirPath, file.Name())
+				fullFileLocation := fmt.Sprintf("%s/%s", directory, file.Name())
 				foundFile, err := os.Open(fullFileLocation)
 				if err != nil {
 					fmt.Printf("Error opening file %s: %v\n", file.Name(), err)
-					return nil, err
+					return err
 				}
 				defer foundFile.Close()
 
 				newLocations, err := ParseFile(foundFile)
 				if err != nil {
 					fmt.Printf("Error parsing file %s: %v\n", file.Name(), err)
-					return nil, err
+					return err
 				}
 
-				premadeLayouts = append(premadeLayouts, PreMadeLayout{
+				PreMadeLayouts = append(PreMadeLayouts, PreMadeLayout{
 					Name:  file.Name(),
 					Walls: newLocations,
 				})
@@ -55,7 +54,7 @@ func InitializePremadelayouts() ([]PreMadeLayout, error) {
 		}
 	}
 
-	return premadeLayouts, nil
+	return nil
 }
 
 func ParseFile(file *os.File) ([]Location, error) {

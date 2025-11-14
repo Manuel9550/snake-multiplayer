@@ -33,11 +33,9 @@ func main() {
 	logger := log.New(multiWriter, "APP: ", log.LstdFlags)
 
 	// Try to load the pre-made layouts
-	internal.PreMadeLayouts, err = internal.InitializePremadelayouts()
+	err = internal.InitializePremadelayouts("./../images")
 	if err != nil {
-		// Just set to empty slice
 		logger.Printf("Failed to load Premade Layouts: %v", err)
-		internal.PreMadeLayouts = make([]internal.PreMadeLayout, 0)
 	}
 
 	sessionManager := internal.NewSessionManager(logger)

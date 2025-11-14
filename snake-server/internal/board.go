@@ -115,17 +115,15 @@ func (b *Board) Initialize(players []*Player) {
 func (b *Board) CreateLayout() {
 	randomLayout := rand.Intn(100)
 	if len(PreMadeLayouts) == 0 || randomLayout >= preLayoutPercentage {
-		fmt.Printf("Creating a random layout")
 		// Just create random walls for the players
 		numWalls := rand.Intn(maxWalls-minWalls+1) + minWalls
 		for i := 0; i <= numWalls; i++ {
 			b.AddNewWall()
 		}
-		fmt.Printf("DOne creating walls")
+
 		return
 	}
 
-	fmt.Printf("Using a premade layout")
 	// Use a premade layout
 	layoutToUseIndex := rand.Intn(len(PreMadeLayouts))
 	layoutToUse := PreMadeLayouts[layoutToUseIndex]
