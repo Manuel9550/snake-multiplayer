@@ -14,7 +14,7 @@ test('successfully parse a proto message', () => {
 
 })
 
-test('DecodeAndValidateEnvelope - MESSAGE_TYPE_PLAYER with valid data', () => {
+test('DecodeAndValidateEnvelope - MESSAGE_TYPE_WELCOME with valid data', () => {
     const playerPayload = {
         PlayerID: "player123",
         Body: [
@@ -27,21 +27,21 @@ test('DecodeAndValidateEnvelope - MESSAGE_TYPE_PLAYER with valid data', () => {
     };
 
     const envelopePayload = {
-        Type: 1, // MESSAGE_TYPE_PLAYER
-        Data: playerPayload
+        Type: 1, // MESSAGE_TYPE_WELCOME
+        Welcome: playerPayload
     };
 
     const buffer = protohandler.ProtoEnvelope.encode(envelopePayload).finish();
     const result = protohandler.DecodeAndValidateEnvelope(buffer);
 
     expect(result.isValid).toBe(true);
-    expect(result.type).toBe("MESSAGE_TYPE_PLAYER");
+    expect(result.type).toBe("MESSAGE_TYPE_WELCOME");
     expect(result.data.PlayerID).toBe("player123");
     expect(result.data.Body.length).toBe(3);
     expect(result.error).toBeUndefined();
 })
 
-test('DecodeAndValidateEnvelope - MESSAGE_TYPE_PLAYER with ArrayBuffer input', () => {
+test('DecodeAndValidateEnvelope - MESSAGE_TYPE_WELCOME with ArrayBuffer input', () => {
     const playerPayload = {
         PlayerID: "player456",
         Body: [{ X: 5, Y: 5 }],
@@ -50,8 +50,8 @@ test('DecodeAndValidateEnvelope - MESSAGE_TYPE_PLAYER with ArrayBuffer input', (
     };
 
     const envelopePayload = {
-        Type: 1, // MESSAGE_TYPE_PLAYER
-        Data: playerPayload
+        Type: 1, // MESSAGE_TYPE_WELCOME
+        Welcome: playerPayload
     };
 
     const uint8Buffer = protohandler.ProtoEnvelope.encode(envelopePayload).finish();
@@ -60,11 +60,11 @@ test('DecodeAndValidateEnvelope - MESSAGE_TYPE_PLAYER with ArrayBuffer input', (
     const result = protohandler.DecodeAndValidateEnvelope(arrayBuffer);
 
     expect(result.isValid).toBe(true);
-    expect(result.type).toBe("MESSAGE_TYPE_PLAYER");
+    expect(result.type).toBe("MESSAGE_TYPE_WELCOME");
     expect(result.data.PlayerID).toBe("player456");
 })
 
-test('DecodeAndValidateEnvelope - MESSAGE_TYPE_GAME_DATA with multiple players and entities', () => {
+test('DecodeAndValidateEnvelope - MESSAGE_TYPE_SESSION_DATA with multiple players and entities', () => {
     const gameDataPayload = {
         PlayerData: [
             {
@@ -97,23 +97,27 @@ test('DecodeAndValidateEnvelope - MESSAGE_TYPE_GAME_DATA with multiple players a
     };
 
     const envelopePayload = {
-        Type: 2, // MESSAGE_TYPE_GAME_DATA
-        GameState: gameDataPayload
+        Type: 2, // MESSAGE_TYPE_SESSION_DATA
+        SessionData: {
+            SessionID: "test-session",
+            State: 3, // SESSION_STATE_RUNNING
+            GameData: gameDataPayload
+        }
     };
 
     const buffer = protohandler.ProtoEnvelope.encode(envelopePayload).finish();
     const result = protohandler.DecodeAndValidateEnvelope(buffer);
 
     expect(result.isValid).toBe(true);
-    expect(result.type).toBe("MESSAGE_TYPE_GAME_DATA");
-    expect(result.data.PlayerData.length).toBe(2);
-    expect(result.data.PlayerData[0].PlayerID).toBe("player1");
-    expect(result.data.PlayerData[1].PlayerID).toBe("player2");
-    expect(result.data.EntityData.length).toBe(2);
-    expect(result.data.EntityData[0].PlayerID).toBe("entity1");
-    expect(result.data.EntityData[0].ID).toBe("testID");
-    expect(result.data.EntityData[1].PlayerID).toBe("entity2");
-    expect(result.data.EntityData[1].ID).toBe("testID2");
+    expect(result.type).toBe("MESSAGE_TYPE_SESSION_DATA");
+    expect(result.data.GameData.PlayerData.length).toBe(2);
+    expect(result.data.GameData.PlayerData[0].PlayerID).toBe("player1");
+    expect(result.data.GameData.PlayerData[1].PlayerID).toBe("player2");
+    expect(result.data.GameData.EntityData.length).toBe(2);
+    expect(result.data.GameData.EntityData[0].PlayerID).toBe("entity1");
+    expect(result.data.GameData.EntityData[0].ID).toBe("testID");
+    expect(result.data.GameData.EntityData[1].PlayerID).toBe("entity2");
+    expect(result.data.GameData.EntityData[1].ID).toBe("testID2");
 })
 
 test('DecodeAndValidateEnvelope - MESSAGE_TYPE_UNKNOWN', () => {
@@ -129,28 +133,28 @@ test('DecodeAndValidateEnvelope - MESSAGE_TYPE_UNKNOWN', () => {
     expect(result.warning).toBe("Unknown message type");
 })
 
-test('DecodeAndValidateEnvelope - MESSAGE_TYPE_PLAYER missing Data field', () => {
+test('DecodeAndValidateEnvelope - MESSAGE_TYPE_WELCOME missing Welcome field', () => {
     const envelopePayload = {
-        Type: 1 // MESSAGE_TYPE_PLAYER but no Data field
+        Type: 1 // MESSAGE_TYPE_WELCOME but no Welcome field
     };
 
     const buffer = protohandler.ProtoEnvelope.encode(envelopePayload).finish();
     const result = protohandler.DecodeAndValidateEnvelope(buffer);
 
     expect(result.isValid).toBe(false);
-    expect(result.error).toContain("Data field is missing");
+    expect(result.error).toContain("Welcome field is missing");
 })
 
-test('DecodeAndValidateEnvelope - MESSAGE_TYPE_GAME_DATA missing GameState field', () => {
+test('DecodeAndValidateEnvelope - MESSAGE_TYPE_SESSION_DATA missing SessionData field', () => {
     const envelopePayload = {
-        Type: 2 // MESSAGE_TYPE_GAME_DATA but no GameState field
+        Type: 2 // MESSAGE_TYPE_SESSION_DATA but no SessionData field
     };
 
     const buffer = protohandler.ProtoEnvelope.encode(envelopePayload).finish();
     const result = protohandler.DecodeAndValidateEnvelope(buffer);
 
     expect(result.isValid).toBe(false);
-    expect(result.error).toContain("GameState field is missing");
+    expect(result.error).toContain("SessionData field is missing");
 })
 
 test('DecodeAndValidateEnvelope - invalid binary data format', () => {
@@ -169,22 +173,26 @@ test('DecodeAndValidateEnvelope - corrupted binary data', () => {
     expect(result.error).toBeDefined();
 })
 
-test('DecodeAndValidateEnvelope - MESSAGE_TYPE_GAME_DATA with empty arrays', () => {
+test('DecodeAndValidateEnvelope - MESSAGE_TYPE_SESSION_DATA with empty arrays', () => {
     const gameDataPayload = {
         PlayerData: [],
         EntityData: []
     };
 
     const envelopePayload = {
-        Type: 2, // MESSAGE_TYPE_GAME_DATA
-        GameState: gameDataPayload
+        Type: 2, // MESSAGE_TYPE_SESSION_DATA
+        SessionData: {
+            SessionID: "empty-session",
+            State: 2, // SESSION_STATE_SETUP
+            GameData: gameDataPayload
+        }
     };
 
     const buffer = protohandler.ProtoEnvelope.encode(envelopePayload).finish();
     const result = protohandler.DecodeAndValidateEnvelope(buffer);
 
     expect(result.isValid).toBe(true);
-    expect(result.type).toBe("MESSAGE_TYPE_GAME_DATA");
-    expect(result.data.PlayerData.length).toBe(0);
-    expect(result.data.EntityData.length).toBe(0);
+    expect(result.type).toBe("MESSAGE_TYPE_SESSION_DATA");
+    expect(result.data.GameData.PlayerData.length).toBe(0);
+    expect(result.data.GameData.EntityData.length).toBe(0);
 })
