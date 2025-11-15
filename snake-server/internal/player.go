@@ -10,8 +10,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type State int
-
 type Queue struct {
 	data *list.List
 }
@@ -124,7 +122,6 @@ func (p *Player) ReadPlayerMessages(inputChannel chan []byte) error {
 		case websocket.BinaryMessage:
 			select {
 			case inputChannel <- m:
-				// Intentionally left blank
 			default:
 				fmt.Println("no message sent")
 			}

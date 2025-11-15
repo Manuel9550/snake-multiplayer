@@ -101,8 +101,6 @@ export class Session {
         if (sessionData.GameData) {
             this.updateGameData(sessionData.GameData);
         }
-
-        this.updateText = true;
     }
 
     updateGameData(gameData) {

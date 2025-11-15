@@ -61,8 +61,7 @@ type getEntitiesCmd struct {
 }
 
 type Session struct {
-	SessionID string
-	//Players              map[string]*Player
+	SessionID            string
 	PlayerSlots          PlayerSlots
 	PlayerInputChannel   chan []byte
 	Board                *Board
@@ -95,8 +94,7 @@ type Session struct {
 func NewSession(finishedChannel chan string, logger *log.Logger) *Session {
 	ctx, cancel := context.WithCancel(context.Background())
 	session := Session{
-		SessionID: uuid.New().String(),
-		//Players:              make(map[string]*Player, 0),
+		SessionID:            uuid.New().String(),
 		Board:                &Board{},
 		PlayerInputChannel:   make(chan []byte),
 		UpdateEntitiesTicker: time.NewTicker(UpdateObjectsTime),
@@ -242,12 +240,12 @@ func (s *Session) addPlayerInternal(newPlayer *Player) error {
 func (s *Session) removePlayerInternal(playerID string) error {
 	player, ok := s.PlayerSlots.GetPlayer(playerID)
 	if !ok {
-		return fmt.Errorf("Player %s no longer exists in  when trying to remove", playerID)
+		return fmt.Errorf("player %s no longer exists in session %s when trying to remove", playerID, s.SessionID)
 	}
 
 	err := s.PlayerSlots.RemovePlayer(playerID)
 	if err != nil {
-		fmt.Printf("error when attempting to shut down player %s: %v", playerID, err)
+		s.logger.Printf("error when attempting to shut down player %s: %v", playerID, err)
 	}
 	s.logger.Printf("Player ID %s deleted from session: %s\n", player.ID, s.SessionID)
 
@@ -390,11 +388,6 @@ func (s *Session) ReadChannelMessages() {
 			return
 		}
 	}
-	// for message := range s.PlayerInputChannel {
-	// 	if err := s.HandleMessage(message); err != nil {
-	// 		s.logger.Printf("Error reading message: %s : %s", string(message), err.Error())
-	// 	}
-	// }
 }
 
 func (s *Session) HandleMessage(message []byte) error {
@@ -586,41 +579,6 @@ func (s *Session) DeleteSession() {
 
 	close(s.PlayerInputChannel)
 }
-
-// func (s *Session) DeleteSessionResources() {
-// 	// Don't use GetPlayers() since the actor goroutine may have already shut down
-// 	// Access players map directly
-// 	s.logger.Printf("Deleting session resources for session %s", s.SessionID)
-
-// 	// Shut down all player connections directly (not through channels)
-// 	for _, player := range s.Players {
-// 		s.logger.Printf("Shutting down player %s", player.ID)
-// 		err := player.ShutDownPlayer()
-// 		if err != nil {
-// 			s.logger.Printf("Error shutting down player ID %s: %s", player.ID, err.Error())
-// 		}
-// 	}
-
-// 	// Clear the players map
-// 	s.Players = make(map[string]*Player)
-
-// 	// Close channels if not already closed
-// 	// Note: PlayerInputChannel and shutdownCh might already be closed
-// 	// We need to be careful about closing them again
-// 	defer func() {
-// 		if r := recover(); r != nil {
-// 			s.logger.Printf("Recovered from panic while closing channels: %v", r)
-// 		}
-// 	}()
-
-// 	// Try to close PlayerInputChannel
-// 	select {
-// 	case <-s.PlayerInputChannel:
-// 		// Channel already closed, do nothing
-// 	default:
-// 		close(s.PlayerInputChannel)
-// 	}
-// }
 
 func (s *Session) GetSessionData(players []*Player, entities []*Entity) []byte {
 	// Depending on where we are in the session, we may pass in the players and entities

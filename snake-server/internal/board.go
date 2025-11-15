@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"fmt"
 	"math/rand"
 
 	"github.com/Manuel9550/snake-multiplayer/snake-server/gen/models"
@@ -55,7 +54,7 @@ func initializeAllowedWallSpaces() []Location {
 			}
 
 			// Player 4 points upwards
-			if x == startingLocations[3].X && y >= startingLocations[3].Y+1 && y <= startingLocations[3].Y-3 {
+			if x == startingLocations[3].X && y >= startingLocations[3].Y-3 && y <= startingLocations[3].Y+1 {
 				continue
 			}
 
@@ -120,23 +119,19 @@ func (b *Board) CreateLayout() {
 		for i := 0; i <= numWalls; i++ {
 			b.AddNewWall()
 		}
-
 		return
 	}
 
 	// Use a premade layout
 	layoutToUseIndex := rand.Intn(len(PreMadeLayouts))
 	layoutToUse := PreMadeLayouts[layoutToUseIndex]
-	fmt.Printf("using layout: %s", layoutToUse.Name)
 	for _, location := range layoutToUse.Walls {
 		b.Entities[location] = NewEntity(NeutralID, models.EntityType_ENTITY_TYPE_WALL, location)
 	}
 }
 
 func (b *Board) GenerateRandomLayout() {
-	fmt.Printf("In gnerate random layout")
 	numWalls := rand.Intn(maxWalls-minWalls+1) + minWalls
-	fmt.Printf("NumWalls : %d", numWalls)
 	for i := 0; i <= numWalls; i++ {
 		b.AddNewWall()
 	}

@@ -63,7 +63,7 @@ var removeTextState = 0;
 
       case SessionState.CONNECTED:
       case SessionState.READY:
-        // remove old taxt values that may be from old players that disconnected
+        // remove old text values that may be from old players that disconnected
         textMap.forEach((text, playerID) => {
           if (!gameSession.players.has(playerID)){
             if (text.parent) {
@@ -301,7 +301,7 @@ var removeTextState = 0;
           const miniSnakeX = statsX + 20;
           const miniSnakeY = playerYOffset + 53;
           const miniSegmentSize = 8;
-          // Don't want snake icons to sprawl off the box, set the mac to be 20
+          // Don't want snake icons to sprawl off the box, set the max to be 20
           const numSegmentsToDraw = Math.min(player.body ? player.body.length : 20);
 
           for (let i = 0; i < numSegmentsToDraw; i++) {
@@ -530,14 +530,6 @@ function handlePlayerInput(event) {
         break;
     }
     protohandler.SendInputMessage(gameSession.playerEntity.id, direction, gameSession.socket)
-}
-
-function purgeOldPlayerText(session) {
-  if (!session.updateText){
-    return
-  }
-  session.updateText = false;
-
 }
 
 function removeText(currentState) {
