@@ -21,7 +21,7 @@ func NewSessionManager(logger *log.Logger) *SessionManager {
 	return &SessionManager{
 		sessions:    make(map[string]*Session),
 		sessionsMu:  sync.Mutex{},
-		doneChannel: make(chan string),
+		doneChannel: make(chan string, 10), // Buffer to prevent blocking
 		logger:      logger,
 	}
 }
@@ -80,10 +80,10 @@ func (s *SessionManager) DeleteSession(sessionID string) error {
 	defer s.sessionsMu.Unlock()
 	foundSession, ok := s.sessions[sessionID]
 	if !ok {
-		return fmt.Errorf("session %s does not exists", sessionID)
+		return fmt.Errorf("session %s does not exist", sessionID)
 	}
 
-	foundSession.DeleteSessionResources()
+	foundSession.DeleteSession()
 	copiedMap := make(map[string]*Session, len(s.sessions)-1)
 	for key, value := range s.sessions {
 		if key != sessionID {

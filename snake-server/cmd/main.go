@@ -1,14 +1,18 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/Manuel9550/snake-multiplayer/snake-server/internal"
 	"github.com/gorilla/websocket"
 )
+
+const logDirectory = "./logs"
 
 // Upgrader is used to upgrade HTTP connections to WebSocket connections.
 var upgrader = websocket.Upgrader{
@@ -19,7 +23,14 @@ var upgrader = websocket.Upgrader{
 }
 
 func main() {
-	logFile, err := os.OpenFile("server.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	err := os.MkdirAll(logDirectory, 0755)
+	if err != nil {
+		log.Fatalf("Error creating directory: %v", err)
+	}
+
+	fileName := fmt.Sprintf("%s.log", time.Now().Format("2006-01-02 15-04-05"))
+
+	logFile, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalf("Failed to open log file: %v", err)
 	}

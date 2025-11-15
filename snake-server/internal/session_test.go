@@ -32,7 +32,6 @@ func TestNewSession(t *testing.T) {
 	finishedCh := make(chan string, 1)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	if session.SessionID == "" {
 		t.Error("Expected non-empty session ID")
@@ -81,7 +80,6 @@ func TestCanJoinWithMaxPlayers(t *testing.T) {
 	finishedCh := make(chan string, 1)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	// Initially should not be able to join, since we are initializing
 	if session.CanJoin() {
@@ -154,7 +152,6 @@ func TestGetPlayersEmpty(t *testing.T) {
 	finishedCh := make(chan string, 1)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	players := session.GetPlayers()
 
@@ -168,7 +165,6 @@ func TestGetPlayersMultiple(t *testing.T) {
 	finishedCh := make(chan string, 1)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	// Add players via the actor channel (avoid HandlePlayer)
 	playerIDs := []string{"player-1", "player-2", "player-3"}
@@ -210,7 +206,6 @@ func TestCheckAllPlayersReadyInsufficientPlayers(t *testing.T) {
 	finishedCh := make(chan string, 1)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	// With no players, should not be ready
 	if session.CheckAllPlayersReady() {
@@ -239,7 +234,6 @@ func TestCheckAllPlayersReadyNotAllReady(t *testing.T) {
 	finishedCh := make(chan string, 1)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	// Add two players, not ready
 	for i := 0; i < 2; i++ {
@@ -264,7 +258,6 @@ func TestCheckAllPlayersReadyAllReady(t *testing.T) {
 	finishedCh := make(chan string, 1)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	// Add two players
 	playerIDs := []string{"player-1", "player-2"}
@@ -300,7 +293,6 @@ func TestUpdatePlayerDirection(t *testing.T) {
 	finishedCh := make(chan string, 1)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	player := createTestPlayer("player-1")
 	player.Direction = models.Direction_DIRECTION_UP
@@ -343,7 +335,6 @@ func TestUpdatePlayerDirectionNonExistentPlayer(t *testing.T) {
 	finishedCh := make(chan string, 1)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	resultCh := make(chan error)
 	session.updateDirectionCh <- &updatePlayerDirectionCmd{
@@ -363,7 +354,6 @@ func TestUpdatePlayerState(t *testing.T) {
 	finishedCh := make(chan string, 1)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	player := createTestPlayer("player-1")
 	player.State = models.PlayerState_STATE_CONNECTED
@@ -405,7 +395,6 @@ func TestUpdatePlayerStateNonExistentPlayer(t *testing.T) {
 	finishedCh := make(chan string, 1)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	resultCh := make(chan error)
 	session.updateStateCh <- &updatePlayerStateCmd{
@@ -425,7 +414,6 @@ func TestPlayerStates(t *testing.T) {
 	finishedCh := make(chan string, 1)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	// Add two players
 	player1 := createTestPlayer("player-1")
@@ -486,7 +474,6 @@ func TestRemovePlayer(t *testing.T) {
 	finishedCh := make(chan string, 1)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	// Add two players
 	for i := 0; i < 2; i++ {
@@ -534,7 +521,6 @@ func TestRemoveLastPlayerMarksSessionDone(t *testing.T) {
 	finishedCh := make(chan string, 10)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	// Add one player
 	player := createTestPlayer("player-1")
@@ -581,7 +567,6 @@ func TestGetSessionData(t *testing.T) {
 	finishedCh := make(chan string, 1)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	// Set session state
 	session.State = models.SessionState_SESSION_STATE_SETUP
@@ -753,7 +738,6 @@ func TestGetSessionDataWithWinningPlayer(t *testing.T) {
 	finishedCh := make(chan string, 1)
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
-	defer session.DeleteSessionResources()
 
 	// Set session to DONE state
 	session.State = models.SessionState_SESSION_STATE_DONE
