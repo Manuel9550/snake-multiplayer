@@ -66,15 +66,16 @@ func initializeAllowedWallSpaces() []Location {
 	return allowedSpaces
 }
 
-func (b *Board) Initialize(players []*Player) {
-	// b.Tiles = make([][]*Entity, numColumns)
-	// for i := range b.Tiles {
-	// 	b.Tiles[i] = make([]*Entity, numRows)
-	// }
-
+func (b *Board) Initialize(playerSlots PlayerSlots) {
 	b.Entities = make(map[Location]Entity)
 
-	for playerNumber, player := range players {
+	for playerNumber, playerSlot := range playerSlots.Slots {
+		// Only want to initialize if a player exists in this slot
+		if playerSlot.Player == nil {
+			continue
+		}
+
+		player := playerSlot.Player
 		var trailingLocation = Location{}
 		player.X = startingLocations[playerNumber].X
 		player.Y = startingLocations[playerNumber].Y
@@ -106,10 +107,9 @@ func (b *Board) Initialize(players []*Player) {
 	}
 
 	b.CreateLayout()
-	for i := 0; i < len(players)+1; i++ {
+	for i := 0; i < len(playerSlots.GetPlayers())+1; i++ {
 		b.AddNewPoint()
 	}
-	fmt.Printf("Finished initializing")
 }
 
 func (b *Board) CreateLayout() {

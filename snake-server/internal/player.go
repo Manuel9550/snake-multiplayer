@@ -192,3 +192,106 @@ func (p *Player) SendMessage(data []byte) {
 		fmt.Printf("Error writing message for player ID %s:%s\n", p.ID, err.Error())
 	}
 }
+
+// There is an issue when players connect, and then leave when the session it's preparing
+// The session may give the same players the same colours it gives out colours based on just the amount of players in the session
+// We need to handle it more manually
+type PlayerSlots struct {
+	Slots []*PlayerSlot
+}
+
+// When initialized, all 4 slots will be open, but set to a colour
+func NewPlayerSlots() PlayerSlots {
+	return PlayerSlots{
+		Slots: []*PlayerSlot{
+			{
+				Player: nil,
+				Colour: "blue",
+			},
+			{
+				Player: nil,
+				Colour: "green",
+			},
+			{
+				Player: nil,
+				Colour: "red",
+			},
+			{
+				Player: nil,
+				Colour: "yellow",
+			},
+		},
+	}
+}
+
+func (p *PlayerSlots) CanJoin() bool {
+	for _, currentPlayerSlot := range p.Slots {
+		if currentPlayerSlot.Player == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *PlayerSlots) AddPlayer(player *Player) bool {
+	// Sanity check
+	if !p.CanJoin() {
+		return false
+	}
+
+	for _, currentPlayerSlot := range p.Slots {
+		if currentPlayerSlot.Player == nil {
+			currentPlayerSlot.Player = player
+			player.Colour = currentPlayerSlot.Colour
+			player.State = models.PlayerState_STATE_CONNECTED
+			return true
+		}
+	}
+
+	// Should never happen, but if we reach here something went wrong
+	return false
+}
+
+func (p *PlayerSlots) RemovePlayer(playerID string) error {
+	for _, currentPlayerSlot := range p.Slots {
+		if currentPlayerSlot.Player != nil && currentPlayerSlot.Player.ID == playerID {
+			player := currentPlayerSlot.Player
+			err := player.ShutDownPlayer()
+			currentPlayerSlot.Player = nil
+			if err != nil {
+				// Need to continue, but print error
+				return fmt.Errorf("error when attempting to shut down player %s: %v", playerID, err)
+			}
+			return nil
+		}
+	}
+
+	return fmt.Errorf("could not find player to remove with ID %s", playerID)
+}
+
+func (p *PlayerSlots) GetPlayers() []*Player {
+	returnPlayers := make([]*Player, 0)
+
+	for _, currentPlayerSlot := range p.Slots {
+		if currentPlayerSlot.Player != nil {
+			returnPlayers = append(returnPlayers, currentPlayerSlot.Player)
+		}
+	}
+
+	return returnPlayers
+}
+
+func (p *PlayerSlots) GetPlayer(playerID string) (*Player, bool) {
+	for _, currentPlayerSlot := range p.Slots {
+		if currentPlayerSlot.Player != nil && currentPlayerSlot.Player.ID == playerID {
+			return currentPlayerSlot.Player, true
+		}
+	}
+
+	return nil, false
+}
+
+type PlayerSlot struct {
+	Player *Player
+	Colour string
+}

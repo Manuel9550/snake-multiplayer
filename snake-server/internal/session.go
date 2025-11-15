@@ -61,8 +61,9 @@ type getEntitiesCmd struct {
 }
 
 type Session struct {
-	SessionID            string
-	Players              map[string]*Player
+	SessionID string
+	//Players              map[string]*Player
+	PlayerSlots          PlayerSlots
 	PlayerInputChannel   chan []byte
 	Board                *Board
 	UpdateEntitiesTicker *time.Ticker
@@ -94,13 +95,14 @@ type Session struct {
 func NewSession(finishedChannel chan string, logger *log.Logger) *Session {
 	ctx, cancel := context.WithCancel(context.Background())
 	session := Session{
-		SessionID:            uuid.New().String(),
-		Players:              make(map[string]*Player, 0),
+		SessionID: uuid.New().String(),
+		//Players:              make(map[string]*Player, 0),
 		Board:                &Board{},
 		PlayerInputChannel:   make(chan []byte),
 		UpdateEntitiesTicker: time.NewTicker(UpdateObjectsTime),
 		State:                models.SessionState_SESSION_STATE_INITIALIZING,
 		finishedChannel:      finishedChannel,
+		PlayerSlots:          NewPlayerSlots(),
 
 		// Initialize command channels
 		addPlayerCh:       make(chan *addPlayerCmd),
@@ -145,22 +147,15 @@ func (s *Session) run() {
 		case cmd := <-s.addPlayerCh:
 			cmd.resultCh <- s.addPlayerInternal(cmd.player)
 			// Every time a player is added/deleted, update the other players
-			players := make([]*Player, 0, len(s.Players))
-			for _, p := range s.Players {
-				players = append(players, p)
-			}
+			players := s.PlayerSlots.GetPlayers()
 			entities := s.Board.GetEntities()
 			s.broadcastInternal(s.GetSessionData(players, entities))
 		case cmd := <-s.removePlayerCh:
 			cmd.resultCh <- s.removePlayerInternal(cmd.playerID)
 			// We can end the session early if there are no more players left
-			if len(s.Players) == 0 {
+			players := s.PlayerSlots.GetPlayers()
+			if len(players) == 0 {
 				s.setSessionDone(nil)
-			}
-
-			players := make([]*Player, 0, len(s.Players))
-			for _, p := range s.Players {
-				players = append(players, p)
 			}
 			entities := s.Board.GetEntities()
 			s.broadcastInternal(s.GetSessionData(players, entities))
@@ -172,19 +167,16 @@ func (s *Session) run() {
 			s.sendMessageInternal(cmd.playerID, cmd.data)
 
 		case cmd := <-s.getPlayersCh:
-			players := make([]*Player, 0, len(s.Players))
-			for _, p := range s.Players {
-				players = append(players, p)
-			}
+			players := s.PlayerSlots.GetPlayers()
 			cmd.resultCh <- players
 
 		case cmd := <-s.canJoinCh:
-			cmd.resultCh <- (len(s.Players) < maxPlayers && s.State == models.SessionState_SESSION_STATE_SETUP)
+			cmd.resultCh <- (len(s.PlayerSlots.GetPlayers()) < maxPlayers && s.State == models.SessionState_SESSION_STATE_SETUP)
 
 		case cmd := <-s.checkAllReadyCh:
 			allReady := true
 			playerCount := 0
-			for _, player := range s.Players {
+			for _, player := range s.PlayerSlots.GetPlayers() {
 				playerCount += 1
 				if player.State != models.PlayerState_STATE_READY {
 					allReady = false
@@ -198,7 +190,7 @@ func (s *Session) run() {
 			cmd.resultCh <- allReady
 
 		case cmd := <-s.updateDirectionCh:
-			player, ok := s.Players[cmd.playerID]
+			player, ok := s.PlayerSlots.GetPlayer(cmd.playerID)
 			if !ok {
 				cmd.resultCh <- fmt.Errorf("Player ID %s doesn't exist in session", cmd.playerID)
 			} else {
@@ -207,7 +199,7 @@ func (s *Session) run() {
 			}
 
 		case cmd := <-s.updateStateCh:
-			player, ok := s.Players[cmd.playerID]
+			player, ok := s.PlayerSlots.GetPlayer(cmd.playerID)
 			if !ok {
 				cmd.resultCh <- fmt.Errorf("Player ID %s doesn't exist in session", cmd.playerID)
 			} else {
@@ -233,27 +225,14 @@ func (s *Session) run() {
 
 func (s *Session) addPlayerInternal(newPlayer *Player) error {
 
-	if _, ok := s.Players[newPlayer.ID]; ok {
+	if _, ok := s.PlayerSlots.GetPlayer(newPlayer.ID); ok {
 		return fmt.Errorf("Player %s already exists in session", newPlayer.ID)
 	}
 
-	// Assign color based on player count
-	numberPlayer := len(s.Players) + 1
-	switch numberPlayer {
-	case 1:
-		newPlayer.Colour = "blue"
-	case 2:
-		newPlayer.Colour = "green"
-	case 3:
-		newPlayer.Colour = "red"
-	case 4:
-		newPlayer.Colour = "yellow"
-	default:
-		newPlayer.Colour = "white"
+	success := s.PlayerSlots.AddPlayer(newPlayer)
+	if !success {
+		return fmt.Errorf("could not add player %s to session %s", newPlayer.ID, s.SessionID)
 	}
-
-	newPlayer.State = models.PlayerState_STATE_CONNECTED
-	s.Players[newPlayer.ID] = newPlayer
 	s.logger.Printf("Player ID %s added to session: %s\n", newPlayer.ID, s.SessionID)
 
 	go s.HandlePlayer(newPlayer)
@@ -261,16 +240,15 @@ func (s *Session) addPlayerInternal(newPlayer *Player) error {
 }
 
 func (s *Session) removePlayerInternal(playerID string) error {
-	player, ok := s.Players[playerID]
+	player, ok := s.PlayerSlots.GetPlayer(playerID)
 	if !ok {
 		return fmt.Errorf("Player %s no longer exists in  when trying to remove", playerID)
 	}
 
-	err := player.ShutDownPlayer()
+	err := s.PlayerSlots.RemovePlayer(playerID)
 	if err != nil {
 		fmt.Printf("error when attempting to shut down player %s: %v", playerID, err)
 	}
-	delete(s.Players, playerID)
 	s.logger.Printf("Player ID %s deleted from session: %s\n", player.ID, s.SessionID)
 
 	return nil
@@ -278,10 +256,7 @@ func (s *Session) removePlayerInternal(playerID string) error {
 
 func (s *Session) broadcastInternal(data []byte) {
 	// Create snapshot of players to avoid holding up the actor while doing I/O
-	players := make([]*Player, 0, len(s.Players))
-	for _, player := range s.Players {
-		players = append(players, player)
-	}
+	players := s.PlayerSlots.GetPlayers()
 
 	// Do I/O outside of the actor select loop (in a goroutine for non-blocking)
 	go func() {
@@ -298,7 +273,7 @@ func (s *Session) sendMessageInternal(playerID *string, data []byte) {
 		return
 	}
 
-	player, ok := s.Players[*playerID]
+	player, ok := s.PlayerSlots.GetPlayer(*playerID)
 	if !ok || player == nil {
 		s.logger.Printf("Error finding player with ID %s\n", *playerID)
 		return
@@ -362,7 +337,7 @@ func (s *Session) StartSession() {
 		return
 	}
 
-	s.Board.Initialize(players)
+	s.Board.Initialize(s.PlayerSlots)
 	s.State = models.SessionState_SESSION_STATE_RUNNING
 	s.BroadcastMessage(s.GetSessionData(nil, nil))
 
@@ -503,7 +478,7 @@ func (s *Session) UpdateState() {
 
 		// If all players have left, there is no point in continuing
 		// mark session as done and trigger shutdown
-		if len(s.Players) == 0 {
+		if len(players) == 0 {
 			s.setSessionDone(nil)
 			s.logger.Printf("All players left session %s, marking as DONE", s.SessionID)
 			return
@@ -601,7 +576,7 @@ func (s *Session) DeleteSession() {
 	// Wait for run and input goroutines to finish
 	s.wg.Wait()
 
-	for _, player := range s.Players {
+	for _, player := range s.PlayerSlots.GetPlayers() {
 		// We are still in the main goroutine, release the players
 		if err := s.removePlayerInternal(player.ID); err != nil {
 			// even if it errors, need to continue

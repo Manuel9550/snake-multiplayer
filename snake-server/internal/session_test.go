@@ -41,8 +41,8 @@ func TestNewSession(t *testing.T) {
 		t.Errorf("Expected initial state INITIALIZING, got %v", session.State)
 	}
 
-	if session.Players == nil {
-		t.Error("Expected Players map to be initialized")
+	if len(session.PlayerSlots.Slots) != 4 {
+		t.Error("Expected PlayerSlots to be initialized with 4 slots")
 	}
 }
 
