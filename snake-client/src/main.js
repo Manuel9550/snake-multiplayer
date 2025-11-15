@@ -63,7 +63,17 @@ var removeTextState = 0;
 
       case SessionState.CONNECTED:
       case SessionState.READY:
-        removeText(gameSession.state)
+        // remove old taxt values that may be from old players that disconnected
+        textMap.forEach((text, playerID) => {
+          if (!gameSession.players.has(playerID)){
+            if (text.parent) {
+              text.parent.removeChild(text);
+            }
+            text.destroy()
+            textMap.delete(playerID);
+          }
+        })
+
         // Display "Hit Enter to ready up" instruction message
         if (!textMap.has("instructions")) {
           const instructionText = new Text({
@@ -85,7 +95,7 @@ var removeTextState = 0;
         gameSession.players.forEach((player, playerID) => {
           // Map PlayerState enum to readable string
           const stateNames = ['UNKNOWN', 'CONNECTING', 'CONNECTED', 'READY', 'PLAYING', 'DONE'];
-          const stateValue = player.state || 2; // Default to CONNECTED if not set
+          const stateValue = player.state || 2; // Default to CONNECTED if not set 
           const stringValue = stateNames[stateValue] || 'UNKNOWN';
 
           // Check if this is the current player
@@ -291,16 +301,17 @@ var removeTextState = 0;
           const miniSnakeX = statsX + 20;
           const miniSnakeY = playerYOffset + 53;
           const miniSegmentSize = 8;
-          const maxSegments = Math.min(player.body ? player.body.length : 0, 20);
+          // Don't want snake icons to sprawl off the box, set the mac to be 20
+          const numSegmentsToDraw = Math.min(player.body ? player.body.length : 20);
 
-          for (let i = 0; i < maxSegments; i++) {
+          for (let i = 0; i < numSegmentsToDraw; i++) {
             graphics.rect(miniSnakeX + (i * (miniSegmentSize + 1)), miniSnakeY, miniSegmentSize, miniSegmentSize);
             graphics.fill(player.colour);
             graphics.stroke({ width: 1, color: player.colour });
           }
 
           // Draw eyes on first segment
-          if (maxSegments > 0) {
+          if (numSegmentsToDraw > 0) {
             const eyeSize = 1.5;
             const eyeOffsetMini = miniSegmentSize / 4;
             graphics.circle(miniSnakeX + eyeOffsetMini, miniSnakeY + eyeOffsetMini, eyeSize);
@@ -412,7 +423,6 @@ var removeTextState = 0;
         break;
     }
 
-    // Graphics is already added to stage at the beginning, no need to add it again
   });
 })();
 
@@ -520,6 +530,14 @@ function handlePlayerInput(event) {
         break;
     }
     protohandler.SendInputMessage(gameSession.playerEntity.id, direction, gameSession.socket)
+}
+
+function purgeOldPlayerText(session) {
+  if (!session.updateText){
+    return
+  }
+  session.updateText = false;
+
 }
 
 function removeText(currentState) {

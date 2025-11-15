@@ -19,7 +19,6 @@ export class Session {
     players = new Map();
     entities = new Map();
     winningPlayerID = null;
-    textMap = new Map();
 
     constructor() {
             // Create WebSocket connection.
@@ -102,10 +101,18 @@ export class Session {
         if (sessionData.GameData) {
             this.updateGameData(sessionData.GameData);
         }
+
+        this.updateText = true;
     }
 
     updateGameData(gameData) {
+        // Similar to entities, some players could exist client side that no longer exist on the server side
+        // I.E. A player disconnects in the setup phase.
+        // We need to account for this and prune older players
+        let activePlayerMap = new Map()
         gameData.PlayerData.forEach(playerData => {
+            // This player has data in the latest session update: it is active
+            activePlayerMap.set(playerData.PlayerID,true);
             if (this.players.has(playerData.PlayerID)) {
                 // Update existing player
                 const existingPlayer = this.players.get(playerData.PlayerID);
@@ -121,6 +128,12 @@ export class Session {
                 newPlayer.body = playerData.Body.map(bodyField => new Tuple(bodyField.X, bodyField.Y));
                 newPlayer.state = playerData.State || 0;
                 this.players.set(playerData.PlayerID, newPlayer);
+            }
+        });
+
+        this.players.forEach(currentPlayerInMap => {
+            if (!activePlayerMap.has(currentPlayerInMap.id)) {
+                this.players.delete(currentPlayerInMap.id)
             }
         });
         
