@@ -12,29 +12,29 @@ export var ProtoPlayerStateEnum;
 export var ProtoSessionData;
 export var ProtoSessionStateEnum;
 export var ProtoMessageTypeEnum;
-let messageTypes = []
+let messageTypes = [];
 
 // Load protobuf schema
 export async function InitializeProtobuf() {
   try {
     // Load session.proto which imports game.proto
-    const root = await protobuf.load('./src/proto/session.proto');
-    ProtoEnvelope = root.lookupType('Envelope');
+    const root = await protobuf.load("./src/proto/session.proto");
+    ProtoEnvelope = root.lookupType("Envelope");
     console.log("Protobuf Envelope loaded successfully");
 
-    ProtoSessionData = root.lookupType('SessionData');
+    ProtoSessionData = root.lookupType("SessionData");
     console.log("Protobuf SessionData loaded successfully");
 
-    ProtoPlayer = root.lookupType('Player');
+    ProtoPlayer = root.lookupType("Player");
     console.log("Protobuf Player loaded successfully");
 
-    ProtoGameData = root.lookupType('GameData');
+    ProtoGameData = root.lookupType("GameData");
     console.log("Protobuf GameData loaded successfully");
 
-    ProtoEntity = root.lookupType('Entity');
+    ProtoEntity = root.lookupType("Entity");
     console.log("Protobuf Entity loaded successfully");
 
-    ProtoBodyField = root.lookupType('BodyField');
+    ProtoBodyField = root.lookupType("BodyField");
     console.log("Protobuf BodyField loaded successfully");
 
     ProtoEntityTypes = root.lookupEnum("EntityType");
@@ -50,24 +50,29 @@ export async function InitializeProtobuf() {
     console.log("Protobuf MessageType Enum loaded successfully");
 
     // Load inputs.proto
-    const rootInputs = await protobuf.load('./src/proto/inputs.proto');
-    ProtoInput = rootInputs.lookupType('Input');
+    const rootInputs = await protobuf.load("./src/proto/inputs.proto");
+    ProtoInput = rootInputs.lookupType("Input");
     console.log("Protobuf Input loaded successfully");
 
-    ProtoReadyUp = rootInputs.lookupType('ReadyUp');
+    ProtoReadyUp = rootInputs.lookupType("ReadyUp");
     console.log("Protobuf ReadyUp loaded successfully");
 
     ProtoDirectionTypes = rootInputs.lookupEnum("Direction");
     console.log("Protobuf Direction loaded successfully");
 
-    messageTypes.push(ProtoEnvelope, ProtoInput, ProtoGameData, ProtoEntity, ProtoSessionData)
+    messageTypes.push(
+      ProtoEnvelope,
+      ProtoInput,
+      ProtoGameData,
+      ProtoEntity,
+      ProtoSessionData,
+    );
   } catch (error) {
     console.error("Failed to load protobuf schema:", error);
   }
 }
 
-
-
+await InitializeProtobuf();
 
 export function HandleEntityMessage(messageData) {
   try {
@@ -77,7 +82,7 @@ export function HandleEntityMessage(messageData) {
       binaryData = new Uint8Array(messageData);
     } else if (messageData instanceof Uint8Array) {
       binaryData = messageData;
-    } else if (typeof messageData === 'string') {
+    } else if (typeof messageData === "string") {
       // If it's a string, it might be a text message - handle accordingly
       console.log("Received text message:", messageData);
       return;
@@ -88,7 +93,6 @@ export function HandleEntityMessage(messageData) {
 
     // Deserialize the protobuf message
     return ProtoEnvelope.decode(binaryData);
-    
   } catch (error) {
     console.error("Error parsing protobuf message:", error);
   }
@@ -103,7 +107,9 @@ export function DecodeAndValidateEnvelope(binaryData) {
     } else if (binaryData instanceof Uint8Array) {
       data = binaryData;
     } else {
-      throw new Error("Invalid binary data format. Expected ArrayBuffer or Uint8Array.");
+      throw new Error(
+        "Invalid binary data format. Expected ArrayBuffer or Uint8Array.",
+      );
     }
 
     // Decode the Envelope message
@@ -123,12 +129,15 @@ export function DecodeAndValidateEnvelope(binaryData) {
           isValid: true,
           type: "MESSAGE_TYPE_UNKNOWN",
           envelope: envelope,
-          warning: "Unknown message type"
+          warning: "Unknown message type",
         };
 
-      case 1: // MESSAGE_TYPE_WELCOME
+      case 1: {
+        // MESSAGE_TYPE_WELCOME
         if (!envelope.Welcome) {
-          throw new Error("MESSAGE_TYPE_WELCOME expected but Welcome field is missing");
+          throw new Error(
+            "MESSAGE_TYPE_WELCOME expected but Welcome field is missing",
+          );
         }
         // Validate the Welcome message (which is a Player type)
         const welcomeError = ProtoPlayer.verify(envelope.Welcome);
@@ -139,12 +148,15 @@ export function DecodeAndValidateEnvelope(binaryData) {
           isValid: true,
           type: "MESSAGE_TYPE_WELCOME",
           envelope: envelope,
-          data: envelope.Welcome
+          data: envelope.Welcome,
         };
-
-      case 2: // MESSAGE_TYPE_SESSION_DATA
+      }
+      case 2: {
+        // MESSAGE_TYPE_SESSION_DATA
         if (!envelope.SessionData) {
-          throw new Error("MESSAGE_TYPE_SESSION_DATA expected but SessionData field is missing");
+          throw new Error(
+            "MESSAGE_TYPE_SESSION_DATA expected but SessionData field is missing",
+          );
         }
         // Validate the SessionData message
         const sessionDataError = ProtoSessionData.verify(envelope.SessionData);
@@ -153,25 +165,43 @@ export function DecodeAndValidateEnvelope(binaryData) {
         }
         // Validate the GameData inside SessionData if present
         if (envelope.SessionData.GameData) {
-          const gameDataError = ProtoGameData.verify(envelope.SessionData.GameData);
+          const gameDataError = ProtoGameData.verify(
+            envelope.SessionData.GameData,
+          );
           if (gameDataError) {
             throw new Error(`GameData validation failed: ${gameDataError}`);
           }
           // Validate each Player in the PlayerData array
           if (envelope.SessionData.GameData.PlayerData) {
-            for (let i = 0; i < envelope.SessionData.GameData.PlayerData.length; i++) {
-              const playerValidationError = ProtoPlayer.verify(envelope.SessionData.GameData.PlayerData[i]);
+            for (
+              let i = 0;
+              i < envelope.SessionData.GameData.PlayerData.length;
+              i++
+            ) {
+              const playerValidationError = ProtoPlayer.verify(
+                envelope.SessionData.GameData.PlayerData[i],
+              );
               if (playerValidationError) {
-                throw new Error(`Player validation failed at index ${i}: ${playerValidationError}`);
+                throw new Error(
+                  `Player validation failed at index ${i}: ${playerValidationError}`,
+                );
               }
             }
           }
           // Validate each Entity in the EntityData array
           if (envelope.SessionData.GameData.EntityData) {
-            for (let i = 0; i < envelope.SessionData.GameData.EntityData.length; i++) {
-              const entityError = ProtoEntity.verify(envelope.SessionData.GameData.EntityData[i]);
+            for (
+              let i = 0;
+              i < envelope.SessionData.GameData.EntityData.length;
+              i++
+            ) {
+              const entityError = ProtoEntity.verify(
+                envelope.SessionData.GameData.EntityData[i],
+              );
               if (entityError) {
-                throw new Error(`Entity validation failed at index ${i}: ${entityError}`);
+                throw new Error(
+                  `Entity validation failed at index ${i}: ${entityError}`,
+                );
               }
             }
           }
@@ -180,58 +210,54 @@ export function DecodeAndValidateEnvelope(binaryData) {
           isValid: true,
           type: "MESSAGE_TYPE_SESSION_DATA",
           envelope: envelope,
-          data: envelope.SessionData
+          data: envelope.SessionData,
         };
-
+      }
       default:
         throw new Error(`Unknown MessageType: ${envelope.Type}`);
     }
-
   } catch (error) {
     console.error("Error decoding/validating envelope:", error.message);
     return {
       isValid: false,
-      error: error.message
+      error: error.message,
     };
   }
 }
 
 export function SendInputMessage(id, type, socket) {
-    const payload = {
-        PlayerID: id,
-        InputType: type,
-    };
+  const payload = {
+    PlayerID: id,
+    InputType: type,
+  };
 
-    try {
-      const errMsg = ProtoInput.verify(payload);
-      if (errMsg) throw Error(errMsg);
-      const message = ProtoInput.create(payload);
-      // Encode the message to a buffer
-      const buffer = ProtoInput.encode(message).finish();
-      socket.send(buffer)
-    } catch (error) {
-      console.error("Error sending player input envelope:", error.message);
-    }
+  try {
+    const errMsg = ProtoInput.verify(payload);
+    if (errMsg) throw Error(errMsg);
+    const message = ProtoInput.create(payload);
+    // Encode the message to a buffer
+    const buffer = ProtoInput.encode(message).finish();
+    socket.send(buffer);
+  } catch (error) {
+    console.error("Error sending player input envelope:", error.message);
+  }
 }
 
 export function SendReadyUpMessage(playerID, socket) {
-    const payload = {
-        PlayerID: playerID,
-    };
+  const payload = {
+    PlayerID: playerID,
+  };
 
-    console.log("Sending ready up for player:", playerID);
+  console.log("Sending ready up for player:", playerID);
 
-    try {
-      const errMsg = ProtoReadyUp.verify(payload);
-      if (errMsg) throw Error(errMsg);
-      const message = ProtoReadyUp.create(payload);
-      // Encode the message to a buffer
-      const buffer = ProtoReadyUp.encode(message).finish();
-      socket.send(buffer)
-    } catch (error) {
-      console.error("Error sending ready up message:", error.message);
-    }
+  try {
+    const errMsg = ProtoReadyUp.verify(payload);
+    if (errMsg) throw Error(errMsg);
+    const message = ProtoReadyUp.create(payload);
+    // Encode the message to a buffer
+    const buffer = ProtoReadyUp.encode(message).finish();
+    socket.send(buffer);
+  } catch (error) {
+    console.error("Error sending ready up message:", error.message);
+  }
 }
-
-
-

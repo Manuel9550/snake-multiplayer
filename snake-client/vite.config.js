@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import vitePluginRequire from 'vite-plugin-require-transform';
+import vitePluginRequire from "vite-plugin-require-transform";
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -8,23 +8,27 @@ export default defineConfig({
     open: true,
   },
   build: {
-    commonjsOptions: { 
+    commonjsOptions: {
       transformMixedEsModules: true,
-      include: [/node_modules/]
-    }
+      include: [/node_modules/],
+    },
+    rollupOptions: {
+      external: ["@xmldom/xmldom"],
+    },
+    target: "esnext",
   },
   define: {
-    global: 'globalThis',
-    exports: '{}',
-    module: '{}',
+    global: "globalThis",
+    exports: "{}",
+    module: "{}",
   },
   plugins: [
     vitePluginRequire({
       fileRegex: /(.ts|.tsx|.vue|.js|.jsx)$/,
-      importType: 'import'
+      importType: "import",
     }),
   ],
   optimizeDeps: {
-    include: ['google-protobuf']
-  }
+    include: ["google-protobuf"],
+  },
 });

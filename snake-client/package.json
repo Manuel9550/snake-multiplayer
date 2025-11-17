@@ -1,5 +1,5 @@
 {
-  "name": "asteroids",
+  "name": "snake-online",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,7 +8,7 @@
     "build": "npm run lint && vite build",
     "lint": "eslint .",
     "dev": "vite",
-     "test": "vitest"
+    "test": "vitest"
   },
   "dependencies": {
     "google-protobuf": "^4.0.0",
@@ -19,6 +19,7 @@
     "webpack-cli": "^6.0.1"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.21.0",
     "eslint": "^9.21.0",
     "eslint-config-prettier": "^10.1.2",
