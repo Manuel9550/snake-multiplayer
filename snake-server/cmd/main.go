@@ -34,7 +34,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to open log file: %v", err)
 	}
-	defer logFile.Close() // Ensure the log file is closed when the program exits
+	defer logFile.Close()
 
 	// Create a MultiWriter that writes to both os.Stdout and the logFile
 	multiWriter := io.MultiWriter(os.Stdout, logFile)
@@ -44,6 +44,7 @@ func main() {
 	logger := log.New(multiWriter, "APP: ", log.LstdFlags)
 
 	// Try to load the pre-made layouts
+	// If it fails, we can still play the game, but players will just have randoly generated maps (not as fun)
 	err = internal.InitializePremadelayouts("./../images")
 	if err != nil {
 		logger.Printf("Failed to load Premade Layouts: %v", err)
@@ -51,6 +52,11 @@ func main() {
 
 	sessionManager := internal.NewSessionManager(logger)
 	go sessionManager.MonitorSessions()
+
+	// Want to host the javascript files alongside handling websocket connections
+	fs := http.FileServer(http.Dir("./dist"))
+	http.Handle("/", http.StripPrefix("", fs))
+
 	http.HandleFunc("/ws", sessionManager.HandleConnection(&upgrader))
 	logger.Printf("WebSocket server started on :8080")
 	err = http.ListenAndServe(":8080", nil)

@@ -12,7 +12,6 @@ export var ProtoPlayerStateEnum;
 export var ProtoSessionData;
 export var ProtoSessionStateEnum;
 export var ProtoMessageTypeEnum;
-let messageTypes = [];
 
 // Load protobuf schema
 export async function InitializeProtobuf() {
@@ -20,53 +19,31 @@ export async function InitializeProtobuf() {
     // Load session.proto which imports game.proto
     const root = await protobuf.load("./src/proto/session.proto");
     ProtoEnvelope = root.lookupType("Envelope");
-    console.log("Protobuf Envelope loaded successfully");
 
     ProtoSessionData = root.lookupType("SessionData");
-    console.log("Protobuf SessionData loaded successfully");
 
     ProtoPlayer = root.lookupType("Player");
-    console.log("Protobuf Player loaded successfully");
 
     ProtoGameData = root.lookupType("GameData");
-    console.log("Protobuf GameData loaded successfully");
 
     ProtoEntity = root.lookupType("Entity");
-    console.log("Protobuf Entity loaded successfully");
 
     ProtoBodyField = root.lookupType("BodyField");
-    console.log("Protobuf BodyField loaded successfully");
 
     ProtoEntityTypes = root.lookupEnum("EntityType");
-    console.log("Protobuf EntityType loaded successfully");
 
     ProtoPlayerStateEnum = root.lookupEnum("PlayerState");
-    console.log("Protobuf PlayerState Enum loaded successfully");
 
     ProtoSessionStateEnum = root.lookupEnum("SessionState");
-    console.log("Protobuf SessionState Enum loaded successfully");
 
     ProtoMessageTypeEnum = root.lookupEnum("MessageType");
-    console.log("Protobuf MessageType Enum loaded successfully");
 
-    // Load inputs.proto
     const rootInputs = await protobuf.load("./src/proto/inputs.proto");
     ProtoInput = rootInputs.lookupType("Input");
-    console.log("Protobuf Input loaded successfully");
 
     ProtoReadyUp = rootInputs.lookupType("ReadyUp");
-    console.log("Protobuf ReadyUp loaded successfully");
 
     ProtoDirectionTypes = rootInputs.lookupEnum("Direction");
-    console.log("Protobuf Direction loaded successfully");
-
-    messageTypes.push(
-      ProtoEnvelope,
-      ProtoInput,
-      ProtoGameData,
-      ProtoEntity,
-      ProtoSessionData,
-    );
   } catch (error) {
     console.error("Failed to load protobuf schema:", error);
   }
@@ -83,9 +60,7 @@ export function HandleEntityMessage(messageData) {
     } else if (messageData instanceof Uint8Array) {
       binaryData = messageData;
     } else if (typeof messageData === "string") {
-      // If it's a string, it might be a text message - handle accordingly
-      console.log("Received text message:", messageData);
-      return;
+      // If it's a string, it might be a text message: We don't really care about those
     } else {
       console.error("Unknown message format:", typeof messageData);
       return;
@@ -247,8 +222,6 @@ export function SendReadyUpMessage(playerID, socket) {
   const payload = {
     PlayerID: playerID,
   };
-
-  console.log("Sending ready up for player:", playerID);
 
   try {
     const errMsg = ProtoReadyUp.verify(payload);

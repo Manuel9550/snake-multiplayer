@@ -9,7 +9,7 @@ export default defineConfig({
   },
   build: {
     commonjsOptions: {
-      transformMixedEsModules: true,
+      transformMixedEsModules: false,
       include: [/node_modules/],
     },
     rollupOptions: {

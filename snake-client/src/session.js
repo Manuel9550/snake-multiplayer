@@ -28,7 +28,6 @@ export class Session {
 
     // Connection opened
     this.socket.addEventListener("open", () => {
-      console.log("WebSocket connected");
       this.socket.send("Hello Server");
     });
 
@@ -70,25 +69,20 @@ export class Session {
     switch (sessionData.State) {
       case 1: // SESSION_STATE_INITIALIZING
         this.state = SessionState.CONNECTING;
-        console.log("Session state: INITIALIZING");
         break;
       case 2: // SESSION_STATE_SETUP
         // Check if we're already in READY state, otherwise set to CONNECTED
         if (this.state !== SessionState.READY) {
           this.state = SessionState.CONNECTED;
         }
-        console.log("Session state: SETUP");
         break;
       case 3: // SESSION_STATE_RUNNING
         this.state = SessionState.PLAYING;
-        console.log("Session state: RUNNING");
         break;
       case 4: // SESSION_STATE_DONE
         this.state = SessionState.DONE;
-        console.log("Session state: DONE");
         if (sessionData.WinningPlayer) {
           this.winningPlayerID = sessionData.WinningPlayer;
-          console.log("Winner:", sessionData.WinningPlayer);
         }
         break;
       default:
