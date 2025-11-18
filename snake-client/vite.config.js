@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import vitePluginRequire from "vite-plugin-require-transform";
+import vitePluginCommonjs from "vite-plugin-commonjs";
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -9,7 +9,7 @@ export default defineConfig({
   },
   build: {
     commonjsOptions: {
-      transformMixedEsModules: false,
+      transformMixedEsModules: true,
       include: [/node_modules/],
     },
     rollupOptions: {
@@ -19,16 +19,9 @@ export default defineConfig({
   },
   define: {
     global: "globalThis",
-    exports: "{}",
-    module: "{}",
   },
-  plugins: [
-    vitePluginRequire({
-      fileRegex: /(.ts|.tsx|.vue|.js|.jsx)$/,
-      importType: "import",
-    }),
-  ],
+  plugins: [vitePluginCommonjs()],
   optimizeDeps: {
-    include: ["google-protobuf"],
+    include: ["google-protobuf", "protobufjs", "parse-svg-path"],
   },
 });

@@ -16,8 +16,8 @@ export var ProtoMessageTypeEnum;
 // Load protobuf schema
 export async function InitializeProtobuf() {
   try {
-    // Load session.proto which imports game.proto
-    const root = await protobuf.load("./src/proto/session.proto");
+    // Load the proto files. They should be in the /poublic/proto directory
+    const root = await protobuf.load("/proto/session.proto");
     ProtoEnvelope = root.lookupType("Envelope");
 
     ProtoSessionData = root.lookupType("SessionData");
@@ -38,7 +38,7 @@ export async function InitializeProtobuf() {
 
     ProtoMessageTypeEnum = root.lookupEnum("MessageType");
 
-    const rootInputs = await protobuf.load("./src/proto/inputs.proto");
+    const rootInputs = await protobuf.load("/proto/inputs.proto");
     ProtoInput = rootInputs.lookupType("Input");
 
     ProtoReadyUp = rootInputs.lookupType("ReadyUp");

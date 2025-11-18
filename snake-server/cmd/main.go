@@ -55,7 +55,7 @@ func main() {
 
 	// Want to host the javascript files alongside handling websocket connections
 	fs := http.FileServer(http.Dir("./dist"))
-	http.Handle("/", http.StripPrefix("", fs))
+	http.Handle("/", fs)
 
 	http.HandleFunc("/ws", sessionManager.HandleConnection(&upgrader))
 	logger.Printf("WebSocket server started on :8080")
