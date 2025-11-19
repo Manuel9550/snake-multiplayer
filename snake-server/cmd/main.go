@@ -13,6 +13,7 @@ import (
 )
 
 const logDirectory = "./logs"
+const frontEndDirectory = "./dist"
 
 // Upgrader is used to upgrade HTTP connections to WebSocket connections.
 var upgrader = websocket.Upgrader{
@@ -48,6 +49,13 @@ func main() {
 	err = internal.InitializePremadelayouts("./../images")
 	if err != nil {
 		logger.Printf("Failed to load Premade Layouts: %v", err)
+	}
+
+	// Before running the server, check if the front end files exists
+	_, err = os.Stat(frontEndDirectory)
+	if os.IsNotExist(err) {
+		logger.Printf("Front end %s folder isn't in directory", frontEndDirectory)
+		return
 	}
 
 	sessionManager := internal.NewSessionManager(logger)
