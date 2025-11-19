@@ -1,6 +1,8 @@
 # Before we do the golang backend. build the front end app
 FROM node:latest AS frontend
 
+EXPOSE 8080
+
 WORKDIR /app/snake-client
 
 COPY snake-client/package.json snake-client/package-lock.json ./
