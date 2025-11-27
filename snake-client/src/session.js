@@ -1,7 +1,8 @@
 import * as protohandler from "./protoHandler.js";
 import { Snake, Tuple, Entity } from "./snake";
 
-const connectionString = "ws://localhost:8080/ws";
+// Note: make sure it's wss (web socket secure) to avoid mixed content errors when the user laods the page with https!
+const connectionString = "wss://snake-online.mannymakes.ca/ws";
 export const SessionState = Object.freeze({
   UNKNOWN: 0,
   CONNECTING: 1,

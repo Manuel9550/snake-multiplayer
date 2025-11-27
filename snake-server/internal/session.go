@@ -391,7 +391,6 @@ func (s *Session) ReadChannelMessages() {
 }
 
 func (s *Session) HandleMessage(message []byte) error {
-	s.logger.Printf("Got message: current state is: %s\n", s.State)
 	// Depending on what state the session is in, we accept different types of messages
 	switch s.State {
 	case models.SessionState_SESSION_STATE_SETUP:
@@ -619,6 +618,5 @@ func (s *Session) GetSessionData(players []*Player, entities []*Entity) []byte {
 		s.logger.Printf("Error marshalling session data: %s", err.Error())
 	}
 
-	s.logger.Printf("Sending %d entities", len(entities))
 	return data
 }

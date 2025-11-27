@@ -14,11 +14,18 @@ import (
 
 const logDirectory = "./logs"
 const frontEndDirectory = "./dist"
+const testEnv = "TEST_ENV"
 
 // Upgrader is used to upgrade HTTP connections to WebSocket connections.
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		// TODO: validate the origin in production
+		origin := r.Header.Get("Origin")
+		return origin == "https://snake-online.mannymakes.ca"
+	},
+}
+
+var testUpgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
 }
@@ -65,9 +72,17 @@ func main() {
 	fs := http.FileServer(http.Dir("./dist"))
 	http.Handle("/", fs)
 
-	http.HandleFunc("/ws", sessionManager.HandleConnection(&upgrader))
-	logger.Printf("WebSocket server started on :8080")
-	err = http.ListenAndServe(":8080", nil)
+	// Are we testing on local?
+	testingLocal := os.Getenv(testEnv)
+	if testingLocal != "TRUE" {
+		http.HandleFunc("/ws", sessionManager.HandleConnection(&testUpgrader))
+	} else {
+		http.HandleFunc("/ws", sessionManager.HandleConnection(&upgrader))
+	}
+
+	// wss (secure websockets) should use port 443, as the standard
+	logger.Printf("WebSocket server started on :443")
+	err = http.ListenAndServe(":443", nil)
 	if err != nil {
 		logger.Printf("Error starting server: %s", err.Error())
 	}

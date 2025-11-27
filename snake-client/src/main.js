@@ -47,21 +47,33 @@ var removeTextState = 0;
     switch (gameSession.state) {
       case SessionState.CONNECTING: {
         // Display "connecting to server" message
-        const connectingText = new Text({
-          text: "Connecting to server...",
-          style: new TextStyle({
-            fontSize: 24,
-            fill: "white",
-          }),
-        });
-        connectingText.x = startX;
-        connectingText.y = startY - 50;
-        app.stage.addChild(connectingText);
-        textMap.set("connecting", connectingText);
+        if (!textMap.has("connecting")) {
+          const connectingText = new Text({
+            text: "Connecting to server...",
+            style: new TextStyle({
+              fontSize: 24,
+              fill: "white",
+            }),
+          });
+          connectingText.x = startX;
+          connectingText.y = startY - 50;
+          app.stage.addChild(connectingText);
+          textMap.set("connecting", connectingText);
+        }
         break;
       }
       case SessionState.CONNECTED:
       case SessionState.READY: {
+        // remove the previous "connecting" text
+        if (textMap.has("connecting")) {
+          var text = textMap.get("connecting");
+          if (text.parent) {
+            text.parent.removeChild(text);
+          }
+          text.destroy();
+          textMap.delete("connecting");
+        }
+
         // remove old text values that may be from old players that disconnected
         textMap.forEach((text, playerID) => {
           if (!gameSession.players.has(playerID)) {

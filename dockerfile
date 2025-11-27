@@ -1,7 +1,7 @@
 # Before we do the golang backend. build the front end app
 FROM node:latest AS frontend
 
-EXPOSE 8080
+EXPOSE 443
 
 WORKDIR /app/snake-client
 
