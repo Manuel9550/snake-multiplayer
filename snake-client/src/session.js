@@ -2,7 +2,10 @@ import * as protohandler from "./protoHandler.js";
 import { Snake, Tuple, Entity } from "./snake";
 
 // Note: make sure it's wss (web socket secure) to avoid mixed content errors when the user laods the page with https!
-const connectionString = "wss://snake-online.mannymakes.ca/ws";
+// import.meta.env.DEV is set by Vite: true when running "npm run dev", false for "npm run build"
+const connectionString = import.meta.env.DEV
+  ? "ws://localhost:443/ws"
+  : "wss://snake-online.mannymakes.ca/ws";
 export const SessionState = Object.freeze({
   UNKNOWN: 0,
   CONNECTING: 1,

@@ -58,25 +58,27 @@ func main() {
 		logger.Printf("Failed to load Premade Layouts: %v", err)
 	}
 
-	// Before running the server, check if the front end files exists
-	_, err = os.Stat(frontEndDirectory)
-	if os.IsNotExist(err) {
-		logger.Printf("Front end %s folder isn't in directory", frontEndDirectory)
-		return
-	}
-
 	sessionManager := internal.NewSessionManager(logger)
 	go sessionManager.MonitorSessions()
 
-	// Want to host the javascript files alongside handling websocket connections
-	fs := http.FileServer(http.Dir("./dist"))
-	http.Handle("/", fs)
-
 	// Are we testing on local?
 	testingLocal := os.Getenv(testEnv)
-	if testingLocal != "TRUE" {
+	if testingLocal != "" {
+		// In test mode, the frontend is served separately by the Vite dev server,
+		// so we only need to handle websocket connections here.
 		http.HandleFunc("/ws", sessionManager.HandleConnection(&testUpgrader))
 	} else {
+		// Before running the server, check if the front end files exists
+		_, err = os.Stat(frontEndDirectory)
+		if os.IsNotExist(err) {
+			logger.Printf("Front end %s folder isn't in directory", frontEndDirectory)
+			return
+		}
+
+		// Want to host the javascript files alongside handling websocket connections
+		fs := http.FileServer(http.Dir("./dist"))
+		http.Handle("/", fs)
+
 		http.HandleFunc("/ws", sessionManager.HandleConnection(&upgrader))
 	}
 

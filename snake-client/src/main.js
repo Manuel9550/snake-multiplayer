@@ -606,6 +606,9 @@ function handlePlayerInput(event) {
     case "KeyD":
       direction = 4;
       break;
+    default:
+      // If it's not part of the 4 inputs, there's no point in sending it
+      return;
   }
   protohandler.SendInputMessage(
     gameSession.playerEntity.id,

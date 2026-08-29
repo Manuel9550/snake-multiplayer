@@ -153,6 +153,9 @@ func (p *Player) ToPlayerProtoMessage() *models.Player {
 func (p *Player) UpdateDirection(newDirection models.Direction) {
 	// Only change the player direction if it makes sense
 	// I.e. snake can't start going left if it's current direction is right
+	if newDirection == models.Direction_DIRECTION_UNKNOWN {
+		return
+	}
 	switch p.Direction {
 	case models.Direction_DIRECTION_DOWN:
 		if newDirection == models.Direction_DIRECTION_UP {
