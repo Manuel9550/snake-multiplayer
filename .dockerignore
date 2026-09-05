@@ -1,0 +1,12 @@
+.git
+.idea
+.claude
+claude.txt
+*.log
+
+snake-client/node_modules
+snake-client/dist
+
+snake-server/bin
+snake-server/logs
+snake-server/cmd/*.log

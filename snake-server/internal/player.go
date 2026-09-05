@@ -14,12 +14,6 @@ type Queue struct {
 	data *list.List
 }
 
-func NewQueue() Queue {
-	return Queue{
-		data: list.New(),
-	}
-}
-
 func (q *Queue) Enqueue(item Location) {
 	if q.data == nil {
 		q.data = list.New()
@@ -67,7 +61,7 @@ func (q *Queue) Dequeue() *Location {
 }
 
 func (q *Queue) ToProto() []*models.BodyField {
-	returnValues := []*models.BodyField{}
+	var returnValues []*models.BodyField
 	if q != nil && q.data != nil {
 		for e := q.data.Front(); e != nil; e = e.Next() {
 			bodyField := e.Value.(Location)
@@ -133,6 +127,8 @@ func (p *Player) ShutDownPlayer() error {
 	if p.conn == nil {
 		return nil
 	}
+	p.connMutex.Lock()
+	defer p.connMutex.Unlock()
 	return p.conn.Close()
 }
 
@@ -193,14 +189,14 @@ func (p *Player) SendMessage(data []byte) {
 	}
 }
 
-// There is an issue when players connect, and then leave when the session it's preparing
+// PlayerSlots : There is an issue when players connect, and then leave when the session it's preparing
 // The session may give the same players the same colours it gives out colours based on just the amount of players in the session
 // We need to handle it more manually
 type PlayerSlots struct {
 	Slots []*PlayerSlot
 }
 
-// When initialized, all 4 slots will be open, but set to a colour
+// NewPlayerSlots : When initialized, all 4 slots will be open, but set to a colour
 func NewPlayerSlots() PlayerSlots {
 	return PlayerSlots{
 		Slots: []*PlayerSlot{
@@ -287,7 +283,6 @@ func (p *PlayerSlots) GetPlayer(playerID string) (*Player, bool) {
 			return currentPlayerSlot.Player, true
 		}
 	}
-
 	return nil, false
 }
 

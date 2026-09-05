@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -13,52 +14,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const UpdateObjectsTime time.Duration = 1000 * time.Millisecond
+const UpdateObjectsTime = 1000 * time.Millisecond
 const maxPlayers = 4
 
-// Command types for the session actor
-type addPlayerCmd struct {
-	player   *Player
-	resultCh chan error
-}
-
-type removePlayerCmd struct {
-	playerID string
-	resultCh chan error
-}
-
-type sendMessageCmd struct {
-	playerID *string
-	data     []byte
-}
-
-type getPlayersCmd struct {
-	resultCh chan []*Player
-}
-
-type canJoinCmd struct {
-	resultCh chan bool
-}
-
-type checkAllPlayersReadyCmd struct {
-	resultCh chan bool
-}
-
-type updatePlayerDirectionCmd struct {
-	playerID  string
-	direction models.Direction
-	resultCh  chan error
-}
-
-type updatePlayerStateCmd struct {
-	playerID string
-	state    models.PlayerState
-	resultCh chan error
-}
-
-type getEntitiesCmd struct {
-	resultCh chan []*Entity
-}
+// ErrSessionShuttingDown is returned by the public actor methods once the session's ctx has been cancelled.
+var ErrSessionShuttingDown = errors.New("session is shutting down")
 
 type Session struct {
 	SessionID            string
@@ -71,22 +31,22 @@ type Session struct {
 	finishedChannel      chan string
 	winningPlayerID      string
 
-	// Actor pattern channels
-	addPlayerCh       chan *addPlayerCmd
-	removePlayerCh    chan *removePlayerCmd
-	sendMessageCh     chan *sendMessageCmd
-	getPlayersCh      chan *getPlayersCmd
-	getEntitiesCh     chan *getEntitiesCmd
-	canJoinCh         chan *canJoinCmd
-	checkAllReadyCh   chan *checkAllPlayersReadyCmd
-	updateDirectionCh chan *updatePlayerDirectionCmd
-	updateStateCh     chan *updatePlayerStateCmd
-	shutdownCh        chan struct{}
+	// Single actor pattern channel
+	// Public methods will make a closure that the actor (session) will do
+	sessionInputCh chan func()
+	shutdownCh     chan struct{}
 
 	// To handle shutting down the session
 	ctx    context.Context
 	cancel context.CancelFunc
-	wg     sync.WaitGroup
+
+	// actorWg tracks run() and ReadChannelMessages()
+	// These are controlled by the session directly
+	actorWg sync.WaitGroup
+
+	// connWg tracks HandlePlayer (one per player) and UpdateState. DeleteSession waits for these
+	// only after closing every remaining connection
+	connWg sync.WaitGroup
 
 	logger *log.Logger
 }
@@ -102,35 +62,27 @@ func NewSession(finishedChannel chan string, logger *log.Logger) *Session {
 		finishedChannel:      finishedChannel,
 		PlayerSlots:          NewPlayerSlots(),
 
-		// Initialize command channels
-		addPlayerCh:       make(chan *addPlayerCmd),
-		removePlayerCh:    make(chan *removePlayerCmd),
-		sendMessageCh:     make(chan *sendMessageCmd, 100),
-		getPlayersCh:      make(chan *getPlayersCmd),
-		canJoinCh:         make(chan *canJoinCmd),
-		checkAllReadyCh:   make(chan *checkAllPlayersReadyCmd),
-		updateDirectionCh: make(chan *updatePlayerDirectionCmd),
-		updateStateCh:     make(chan *updatePlayerStateCmd),
-		shutdownCh:        make(chan struct{}, 1), // Buffered to allow non-blocking sends
-		getEntitiesCh:     make(chan *getEntitiesCmd),
+		// Initialize the actual session input channel
+		// Buffered so broadcasts/sends queued up in quick succession don't block their callers waiting for the actor to catch up
+		sessionInputCh: make(chan func(), 100),
+		shutdownCh:     make(chan struct{}, 1), // Buffered to allow non-blocking sends
 
 		logger: logger,
 
 		ctx:    ctx,
 		cancel: cancel,
-		wg:     sync.WaitGroup{},
 	}
 	logger.Printf("New session %s\n", session.SessionID)
 
-	session.wg.Add(2)
+	session.actorWg.Add(2)
 	go func() {
 		// The main actor goroutine
-		defer session.wg.Done()
+		defer session.actorWg.Done()
 		session.run()
 	}()
 	go func() {
 		// Reading messages players send
-		defer session.wg.Done()
+		defer session.actorWg.Done()
 		session.ReadChannelMessages()
 	}()
 
@@ -139,79 +91,16 @@ func NewSession(finishedChannel chan string, logger *log.Logger) *Session {
 
 // run is the central goroutine that owns the Players map
 func (s *Session) run() {
-
 	for {
 		select {
-		case cmd := <-s.addPlayerCh:
-			cmd.resultCh <- s.addPlayerInternal(cmd.player)
-			// Every time a player is added/deleted, update the other players
-			players := s.PlayerSlots.GetPlayers()
-			entities := s.Board.GetEntities()
-			s.broadcastInternal(s.GetSessionData(players, entities))
-		case cmd := <-s.removePlayerCh:
-			cmd.resultCh <- s.removePlayerInternal(cmd.playerID)
-			// We can end the session early if there are no more players left
-			players := s.PlayerSlots.GetPlayers()
-			if len(players) == 0 {
-				s.setSessionDone(nil)
-			}
-			entities := s.Board.GetEntities()
-			s.broadcastInternal(s.GetSessionData(players, entities))
-
-			if s.State == models.SessionState_SESSION_STATE_DONE {
-				s.shutdownCh <- struct{}{}
-			}
-		case cmd := <-s.sendMessageCh:
-			s.sendMessageInternal(cmd.playerID, cmd.data)
-
-		case cmd := <-s.getPlayersCh:
-			players := s.PlayerSlots.GetPlayers()
-			cmd.resultCh <- players
-
-		case cmd := <-s.canJoinCh:
-			cmd.resultCh <- (len(s.PlayerSlots.GetPlayers()) < maxPlayers && s.State == models.SessionState_SESSION_STATE_SETUP)
-
-		case cmd := <-s.checkAllReadyCh:
-			allReady := true
-			playerCount := 0
-			for _, player := range s.PlayerSlots.GetPlayers() {
-				playerCount += 1
-				if player.State != models.PlayerState_STATE_READY {
-					allReady = false
-					break
-				}
-			}
-			if playerCount < 2 {
-				allReady = false
-			}
-
-			cmd.resultCh <- allReady
-
-		case cmd := <-s.updateDirectionCh:
-			player, ok := s.PlayerSlots.GetPlayer(cmd.playerID)
-			if !ok {
-				cmd.resultCh <- fmt.Errorf("Player ID %s doesn't exist in session", cmd.playerID)
-			} else {
-				player.UpdateDirection(cmd.direction)
-				cmd.resultCh <- nil
-			}
-
-		case cmd := <-s.updateStateCh:
-			player, ok := s.PlayerSlots.GetPlayer(cmd.playerID)
-			if !ok {
-				cmd.resultCh <- fmt.Errorf("Player ID %s doesn't exist in session", cmd.playerID)
-			} else {
-				player.UpdateState(cmd.state)
-				cmd.resultCh <- nil
-			}
-
-		case cmd := <-s.getEntitiesCh:
-			cmd.resultCh <- s.Board.GetEntities()
+		// The session state needs to be changed
+		case fn := <-s.sessionInputCh:
+			fn()
 
 		case <-s.shutdownCh:
 			// Whether the game was finished, or all players left, this session is over
 			// Tell the session manager to delete this session
-			// The actual session resources will cleanup after this goroutine is done
+			// The actual session resources will clean up after this goroutine is done
 			s.initiateShutDown()
 			s.finishedChannel <- s.SessionID
 			return
@@ -224,7 +113,7 @@ func (s *Session) run() {
 func (s *Session) addPlayerInternal(newPlayer *Player) error {
 
 	if _, ok := s.PlayerSlots.GetPlayer(newPlayer.ID); ok {
-		return fmt.Errorf("Player %s already exists in session", newPlayer.ID)
+		return fmt.Errorf("player %s already exists in session", newPlayer.ID)
 	}
 
 	success := s.PlayerSlots.AddPlayer(newPlayer)
@@ -233,6 +122,7 @@ func (s *Session) addPlayerInternal(newPlayer *Player) error {
 	}
 	s.logger.Printf("Player ID %s added to session: %s\n", newPlayer.ID, s.SessionID)
 
+	s.connWg.Add(1)
 	go s.HandlePlayer(newPlayer)
 	return nil
 }
@@ -256,12 +146,26 @@ func (s *Session) broadcastInternal(data []byte) {
 	// Create snapshot of players to avoid holding up the actor while doing I/O
 	players := s.PlayerSlots.GetPlayers()
 
-	// Do I/O outside of the actor select loop (in a goroutine for non-blocking)
+	// Do I/O outside the actor select loop (in a goroutine for non-blocking)
 	go func() {
 		for _, player := range players {
 			player.SendMessage(data)
 		}
 	}()
+}
+
+// broadcastAndWait sends data to players synchronously and blocks until delivery is done, unlike BroadcastMessage. Need it for the final message that must land before the session shuts down.
+func (s *Session) broadcastAndWait(players []*Player, data []byte) {
+	doneCh := make(chan struct{}, 1)
+	if !s.sendToActor(func() {
+		for _, player := range players {
+			player.SendMessage(data)
+		}
+		doneCh <- struct{}{}
+	}) {
+		return
+	}
+	awaitResult(s, doneCh, struct{}{})
 }
 
 func (s *Session) sendMessageInternal(playerID *string, data []byte) {
@@ -283,53 +187,81 @@ func (s *Session) sendMessageInternal(playerID *string, data []byte) {
 	}()
 }
 
-func (s *Session) AddPlayer(newPlayer *Player) error {
-	// Use channel to add player to session
-	resultCh := make(chan error)
-	s.addPlayerCh <- &addPlayerCmd{
-		player:   newPlayer,
-		resultCh: resultCh,
+// Public methods will communicate with the session by calling the sessionInputCh
+
+// sendToActor hands fn to the actor goroutine, returning false instead of blocking forever
+// if the session has already begun shutting down.
+func (s *Session) sendToActor(fn func()) bool {
+	select {
+	case s.sessionInputCh <- fn:
+		return true
+	case <-s.ctx.Done():
+		return false
 	}
-	return <-resultCh
+}
+
+// awaitResult waits for resultCh, but gives up and returns fallback if the session shuts down
+// before the actor gets around to running the closure that would have produced a result.
+func awaitResult[T any](s *Session, resultCh <-chan T, fallback T) T {
+	select {
+	case v := <-resultCh:
+		return v
+	case <-s.ctx.Done():
+		return fallback
+	}
+}
+
+func (s *Session) shuttingDownErr() error {
+	return fmt.Errorf("session %s: %w", s.SessionID, ErrSessionShuttingDown)
+}
+
+func (s *Session) AddPlayer(newPlayer *Player) error {
+	resultCh := make(chan error, 1)
+	if !s.sendToActor(func() {
+		resultCh <- s.addPlayerInternal(newPlayer)
+		// Every time a player is added/deleted, update the other players
+		players := s.PlayerSlots.GetPlayers()
+		entities := s.Board.GetEntities()
+		s.broadcastInternal(s.GetSessionData(players, entities))
+	}) {
+		return s.shuttingDownErr()
+	}
+	return awaitResult(s, resultCh, s.shuttingDownErr())
 }
 
 func (s *Session) ReleasePlayer(playerID string) error {
-	resultCh := make(chan error)
-	s.removePlayerCh <- &removePlayerCmd{
-		playerID: playerID,
-		resultCh: resultCh,
+	resultCh := make(chan error, 1)
+	if !s.sendToActor(func() {
+		resultCh <- s.removePlayerInternal(playerID)
+		// We can end the session early if there are no more players left
+		players := s.PlayerSlots.GetPlayers()
+		if len(players) == 0 {
+			s.setSessionDone(nil)
+		}
+		entities := s.Board.GetEntities()
+		s.broadcastInternal(s.GetSessionData(players, entities))
+
+		if s.State == models.SessionState_SESSION_STATE_DONE {
+			s.shutdownCh <- struct{}{}
+		}
+	}) {
+		return s.shuttingDownErr()
 	}
-	return <-resultCh
+	return awaitResult(s, resultCh, s.shuttingDownErr())
 }
 
 func (s *Session) CanJoin() bool {
-	// Before doing anything, check the context to see if it was cancelled.
-	select {
-	case <-s.ctx.Done():
-		return false
-	default:
-	}
-
 	resultCh := make(chan bool, 1)
-	select {
-	case s.canJoinCh <- &canJoinCmd{resultCh: resultCh}:
-		select {
-		case result := <-resultCh:
-			return result
-		case <-time.After(100 * time.Millisecond):
-			return false // Timeout
-		}
-	case <-time.After(100 * time.Millisecond):
-		return false // Can't send, session likely dead
+	if !s.sendToActor(func() {
+		resultCh <- len(s.PlayerSlots.GetPlayers()) < maxPlayers && s.State == models.SessionState_SESSION_STATE_SETUP
+	}) {
+		return false
 	}
+	return awaitResult(s, resultCh, false)
 }
 
 func (s *Session) StartSession() {
-	playerCh := make(chan []*Player)
-	s.getPlayersCh <- &getPlayersCmd{
-		resultCh: playerCh,
-	}
-	players := <-playerCh
+	players := s.GetPlayers()
 
 	if len(players) == 0 {
 		return
@@ -339,10 +271,13 @@ func (s *Session) StartSession() {
 	s.State = models.SessionState_SESSION_STATE_RUNNING
 	s.BroadcastMessage(s.GetSessionData(nil, nil))
 
+	s.connWg.Add(1)
 	go s.UpdateState()
 }
 
 func (s *Session) HandlePlayer(player *Player) {
+	defer s.connWg.Done()
+
 	// If conn is nil, this is a test scenario - don't auto-remove the player
 	if player.conn == nil {
 		// Still broadcast player states for testing purposes
@@ -365,15 +300,19 @@ func (s *Session) HandlePlayer(player *Player) {
 
 	// Read the player messages, until the connection is closed
 	err = player.ReadPlayerMessages(s.PlayerInputChannel)
-	// Now that we returned, was it a close error?
-	if !websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure) {
-		// Log the error
-		s.logger.Printf("Player ID %s closed unexpectadly\n", player.ID)
-	} else {
+	switch {
+	case websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure):
+		s.logger.Printf("Player ID %s closed connection unexpectedly: %s\n", player.ID, err.Error())
+	case s.ctx.Err() != nil:
+		// Session already closed this connection itself during teardown
+	default:
 		s.logger.Printf("Player ID %s closed connection\n", player.ID)
 	}
 
-	s.ReleasePlayer(player.ID)
+	err = s.ReleasePlayer(player.ID)
+	if err != nil && !errors.Is(err, ErrSessionShuttingDown) {
+		s.logger.Printf("Error releasing Player ID %s: %s\n", player.ID, err.Error())
+	}
 
 }
 
@@ -415,14 +354,7 @@ func (s *Session) HandlePlayerInput(message []byte) error {
 		return err
 	}
 
-	// Use channel to update player direction
-	resultCh := make(chan error)
-	s.updateDirectionCh <- &updatePlayerDirectionCmd{
-		playerID:  input.PlayerID,
-		direction: input.InputType,
-		resultCh:  resultCh,
-	}
-	return <-resultCh
+	return s.UpdatePlayerDirection(input.PlayerID, input.InputType)
 }
 
 func (s *Session) HandlePlayerReadyUp(message []byte) error {
@@ -432,14 +364,7 @@ func (s *Session) HandlePlayerReadyUp(message []byte) error {
 		return err
 	}
 
-	// Use channel to update player state
-	resultCh := make(chan error)
-	s.updateStateCh <- &updatePlayerStateCmd{
-		playerID: input.PlayerID,
-		state:    models.PlayerState_STATE_READY,
-		resultCh: resultCh,
-	}
-	if err := <-resultCh; err != nil {
+	if err := s.UpdatePlayerState(input.PlayerID, models.PlayerState_STATE_READY); err != nil {
 		return err
 	}
 
@@ -453,15 +378,63 @@ func (s *Session) HandlePlayerReadyUp(message []byte) error {
 	return nil
 }
 
-func (s *Session) CheckAllPlayersReady() bool {
-	resultCh := make(chan bool)
-	s.checkAllReadyCh <- &checkAllPlayersReadyCmd{
-		resultCh: resultCh,
+func (s *Session) UpdatePlayerDirection(playerID string, direction models.Direction) error {
+	resultCh := make(chan error, 1)
+	if !s.sendToActor(func() {
+		player, ok := s.PlayerSlots.GetPlayer(playerID)
+		if !ok {
+			resultCh <- fmt.Errorf("player ID %s doesn't exist in session", playerID)
+		} else {
+			player.UpdateDirection(direction)
+			resultCh <- nil
+		}
+	}) {
+		return s.shuttingDownErr()
 	}
-	return <-resultCh
+	return awaitResult(s, resultCh, s.shuttingDownErr())
+}
+
+func (s *Session) UpdatePlayerState(playerID string, state models.PlayerState) error {
+	resultCh := make(chan error, 1)
+	if !s.sendToActor(func() {
+		player, ok := s.PlayerSlots.GetPlayer(playerID)
+		if !ok {
+			resultCh <- fmt.Errorf("player ID %s doesn't exist in session", playerID)
+		} else {
+			player.UpdateState(state)
+			resultCh <- nil
+		}
+	}) {
+		return s.shuttingDownErr()
+	}
+	return awaitResult(s, resultCh, s.shuttingDownErr())
+}
+
+func (s *Session) CheckAllPlayersReady() bool {
+	resultCh := make(chan bool, 1)
+	if !s.sendToActor(func() {
+		allReady := true
+		playerCount := 0
+		for _, player := range s.PlayerSlots.GetPlayers() {
+			playerCount += 1
+			if player.State != models.PlayerState_STATE_READY {
+				allReady = false
+				break
+			}
+		}
+		if playerCount < 2 {
+			allReady = false
+		}
+
+		resultCh <- allReady
+	}) {
+		return false
+	}
+	return awaitResult(s, resultCh, false)
 }
 
 func (s *Session) UpdateState() {
+	defer s.connWg.Done()
 	defer func() {
 		s.shutdownCh <- struct{}{}
 	}()
@@ -481,7 +454,7 @@ func (s *Session) UpdateState() {
 		if gameDone {
 			s.setSessionDone(winningPlayer)
 			sessionData := s.GetSessionData(players, nil)
-			s.BroadcastMessage(sessionData)
+			s.broadcastAndWait(players, sessionData)
 			return
 		}
 		sessionData := s.GetSessionData(players, nil)
@@ -525,35 +498,36 @@ func (s *Session) CheckGameOver(players []*Player) (bool, *Player) {
 }
 
 func (s *Session) SendMessage(playerID *string, data []byte) {
-	s.sendMessageCh <- &sendMessageCmd{
-		playerID: playerID,
-		data:     data,
-	}
+	s.sendToActor(func() {
+		s.sendMessageInternal(playerID, data)
+	})
 }
 
 func (s *Session) BroadcastMessage(data []byte) {
-	// If there isn't a specific player ID in the SendMessageCmd, we will just broadcast to everyone
-	s.sendMessageCh <- &sendMessageCmd{
-		playerID: nil,
-		data:     data,
-	}
+	// If there isn't a specific player ID, we just broadcast to everyone
+	s.sendToActor(func() {
+		s.sendMessageInternal(nil, data)
+	})
 }
 
 func (s *Session) GetPlayers() []*Player {
-	// Get list of player IDs first via channel
-	playersCh := make(chan []*Player)
-	s.getPlayersCh <- &getPlayersCmd{
-		resultCh: playersCh,
+	resultCh := make(chan []*Player, 1)
+	if !s.sendToActor(func() {
+		resultCh <- s.PlayerSlots.GetPlayers()
+	}) {
+		return nil
 	}
-	return <-playersCh
+	return awaitResult(s, resultCh, ([]*Player)(nil))
 }
 
 func (s *Session) GetEntities() []*Entity {
-	entityCh := make(chan []*Entity)
-	s.getEntitiesCh <- &getEntitiesCmd{
-		resultCh: entityCh,
+	resultCh := make(chan []*Entity, 1)
+	if !s.sendToActor(func() {
+		resultCh <- s.Board.GetEntities()
+	}) {
+		return nil
 	}
-	return <-entityCh
+	return awaitResult(s, resultCh, ([]*Entity)(nil))
 }
 
 // Called from main actor goroutine: prepare the session for deletion from the sessionManager
@@ -562,19 +536,33 @@ func (s *Session) initiateShutDown() {
 	s.UpdateEntitiesTicker.Stop()
 }
 
-// Called by the session manager, actually clean up the session
+// Discard tears down a session that was never registered with a SessionManager
+// Not a likely scenario,
+func (s *Session) Discard() {
+	// shutdownCh is buffered and this session never had a player, so nothing else could have signalled it yet
+	s.shutdownCh <- struct{}{}
+	s.DeleteSession()
+}
+
+// DeleteSession is called by the session manager, actually clean up the session
 func (s *Session) DeleteSession() {
 	s.logger.Printf("Shutting down session: %s", s.SessionID)
-	// Wait for run and input goroutines to finish
-	s.wg.Wait()
+	// Wait for run() and ReadChannelMessages() to finish before touching PlayerSlots ourselves
+	s.actorWg.Wait()
 
 	for _, player := range s.PlayerSlots.GetPlayers() {
-		// We are still in the main goroutine, release the players
+		// We are still in the main goroutine, release the players.
+		// This closes each remaining connection, which is what unblocks any HandlePlayer
+		// goroutine still parked in conn.ReadMessage().
 		if err := s.removePlayerInternal(player.ID); err != nil {
 			// even if it errors, need to continue
 			s.logger.Printf("error removing player %s:%v", player.ID, err)
 		}
 	}
+
+	// Now that every connection is closed, HandlePlayer/UpdateState are guaranteed to finish soon.
+	// Wait for them before closing PlayerInputChannel so nothing can still be sending into it.
+	s.connWg.Wait()
 
 	close(s.PlayerInputChannel)
 }

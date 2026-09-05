@@ -97,13 +97,7 @@ func TestCanJoinWithMaxPlayers(t *testing.T) {
 		player := createTestPlayer("player-" + string(rune('1'+i)))
 		player.State = models.PlayerState_STATE_CONNECTED
 
-		resultCh := make(chan error)
-		session.addPlayerCh <- &addPlayerCmd{
-			player:   player,
-			resultCh: resultCh,
-		}
-		err := <-resultCh
-		if err != nil {
+		if err := session.AddPlayer(player); err != nil {
 			t.Fatalf("Error adding player %d: %v", i, err)
 		}
 		if testPlayer == nil {
@@ -117,22 +111,12 @@ func TestCanJoinWithMaxPlayers(t *testing.T) {
 	}
 
 	// remove a player
-	resultCh := make(chan error)
-	session.removePlayerCh <- &removePlayerCmd{
-		playerID: testPlayer.ID,
-		resultCh: resultCh,
-	}
-	err := <-resultCh
-	if err != nil {
+	if err := session.ReleasePlayer(testPlayer.ID); err != nil {
 		t.Fatalf("Error removing player %s: %v", testPlayer.ID, err)
 	}
 
 	// check how many players are in the session
-	resultPlayersCh := make(chan []*Player)
-	session.getPlayersCh <- &getPlayersCmd{
-		resultCh: resultPlayersCh,
-	}
-	players := <-resultPlayersCh
+	players := session.GetPlayers()
 	if len(players) != 3 {
 		t.Fatalf("Expected only 3 players: instead got %d", len(players))
 	}
@@ -166,18 +150,13 @@ func TestGetPlayersMultiple(t *testing.T) {
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
 
-	// Add players via the actor channel (avoid HandlePlayer)
+	// Add players via the public API (avoid HandlePlayer)
 	playerIDs := []string{"player-1", "player-2", "player-3"}
 	for _, id := range playerIDs {
 		player := createTestPlayer(id)
 		player.State = models.PlayerState_STATE_CONNECTED
 
-		resultCh := make(chan error)
-		session.addPlayerCh <- &addPlayerCmd{
-			player:   player,
-			resultCh: resultCh,
-		}
-		if err := <-resultCh; err != nil {
+		if err := session.AddPlayer(player); err != nil {
 			t.Fatalf("Error adding player: %v", err)
 		}
 	}
@@ -216,12 +195,9 @@ func TestCheckAllPlayersReadyInsufficientPlayers(t *testing.T) {
 	player := createTestPlayer("player-1")
 	player.State = models.PlayerState_STATE_READY
 
-	resultCh := make(chan error)
-	session.addPlayerCh <- &addPlayerCmd{
-		player:   player,
-		resultCh: resultCh,
+	if err := session.AddPlayer(player); err != nil {
+		t.Fatalf("Error adding player: %v", err)
 	}
-	<-resultCh
 
 	// Still should not be ready (need at least 2)
 	if session.CheckAllPlayersReady() {
@@ -240,12 +216,9 @@ func TestCheckAllPlayersReadyNotAllReady(t *testing.T) {
 		player := createTestPlayer("player-" + string(rune('1'+i)))
 		player.State = models.PlayerState_STATE_CONNECTED
 
-		resultCh := make(chan error)
-		session.addPlayerCh <- &addPlayerCmd{
-			player:   player,
-			resultCh: resultCh,
+		if err := session.AddPlayer(player); err != nil {
+			t.Fatalf("Error adding player: %v", err)
 		}
-		<-resultCh
 	}
 
 	if session.CheckAllPlayersReady() {
@@ -264,23 +237,16 @@ func TestCheckAllPlayersReadyAllReady(t *testing.T) {
 	for _, id := range playerIDs {
 		player := createTestPlayer(id)
 
-		resultCh := make(chan error)
-		session.addPlayerCh <- &addPlayerCmd{
-			player:   player,
-			resultCh: resultCh,
+		if err := session.AddPlayer(player); err != nil {
+			t.Fatalf("Error adding player: %v", err)
 		}
-		<-resultCh
 	}
 
 	// Now mark both players as ready
 	for _, id := range playerIDs {
-		resultCh := make(chan error)
-		session.updateStateCh <- &updatePlayerStateCmd{
-			playerID: id,
-			state:    models.PlayerState_STATE_READY,
-			resultCh: resultCh,
+		if err := session.UpdatePlayerState(id, models.PlayerState_STATE_READY); err != nil {
+			t.Fatalf("Error updating player state: %v", err)
 		}
-		<-resultCh
 	}
 
 	if !session.CheckAllPlayersReady() {
@@ -299,23 +265,12 @@ func TestUpdatePlayerDirection(t *testing.T) {
 	player.State = models.PlayerState_STATE_CONNECTED
 
 	// Add player
-	addResultCh := make(chan error)
-	session.addPlayerCh <- &addPlayerCmd{
-		player:   player,
-		resultCh: addResultCh,
-	}
-	<-addResultCh
-
-	// Update direction using the channel-based method
-	resultCh := make(chan error)
-	session.updateDirectionCh <- &updatePlayerDirectionCmd{
-		playerID:  "player-1",
-		direction: models.Direction_DIRECTION_LEFT,
-		resultCh:  resultCh,
+	if err := session.AddPlayer(player); err != nil {
+		t.Fatalf("Error adding player: %v", err)
 	}
 
-	err := <-resultCh
-	if err != nil {
+	// Update direction using the public method
+	if err := session.UpdatePlayerDirection("player-1", models.Direction_DIRECTION_LEFT); err != nil {
 		t.Errorf("Expected no error updating direction, got %v", err)
 	}
 
@@ -336,14 +291,7 @@ func TestUpdatePlayerDirectionNonExistentPlayer(t *testing.T) {
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
 
-	resultCh := make(chan error)
-	session.updateDirectionCh <- &updatePlayerDirectionCmd{
-		playerID:  "non-existent",
-		direction: models.Direction_DIRECTION_LEFT,
-		resultCh:  resultCh,
-	}
-
-	err := <-resultCh
+	err := session.UpdatePlayerDirection("non-existent", models.Direction_DIRECTION_LEFT)
 	if err == nil {
 		t.Error("Expected error updating direction for non-existent player, got none")
 	}
@@ -359,23 +307,12 @@ func TestUpdatePlayerState(t *testing.T) {
 	player.State = models.PlayerState_STATE_CONNECTED
 
 	// Add player
-	addResultCh := make(chan error)
-	session.addPlayerCh <- &addPlayerCmd{
-		player:   player,
-		resultCh: addResultCh,
-	}
-	<-addResultCh
-
-	// Update state using the channel-based method
-	resultCh := make(chan error)
-	session.updateStateCh <- &updatePlayerStateCmd{
-		playerID: "player-1",
-		state:    models.PlayerState_STATE_READY,
-		resultCh: resultCh,
+	if err := session.AddPlayer(player); err != nil {
+		t.Fatalf("Error adding player: %v", err)
 	}
 
-	err := <-resultCh
-	if err != nil {
+	// Update state using the public method
+	if err := session.UpdatePlayerState("player-1", models.PlayerState_STATE_READY); err != nil {
 		t.Errorf("Expected no error updating state, got %v", err)
 	}
 
@@ -396,14 +333,7 @@ func TestUpdatePlayerStateNonExistentPlayer(t *testing.T) {
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	session := NewSession(finishedCh, logger)
 
-	resultCh := make(chan error)
-	session.updateStateCh <- &updatePlayerStateCmd{
-		playerID: "non-existent",
-		state:    models.PlayerState_STATE_READY,
-		resultCh: resultCh,
-	}
-
-	err := <-resultCh
+	err := session.UpdatePlayerState("non-existent", models.PlayerState_STATE_READY)
 	if err == nil {
 		t.Error("Expected error updating state for non-existent player, got none")
 	}
@@ -420,22 +350,15 @@ func TestPlayerStates(t *testing.T) {
 	player2 := createTestPlayer("player-2")
 
 	for _, p := range []*Player{player1, player2} {
-		resultCh := make(chan error)
-		session.addPlayerCh <- &addPlayerCmd{
-			player:   p,
-			resultCh: resultCh,
+		if err := session.AddPlayer(p); err != nil {
+			t.Fatalf("Error adding player: %v", err)
 		}
-		<-resultCh
 	}
 
 	// Update player1 to READY state
-	resultCh := make(chan error)
-	session.updateStateCh <- &updatePlayerStateCmd{
-		playerID: "player-1",
-		state:    models.PlayerState_STATE_READY,
-		resultCh: resultCh,
+	if err := session.UpdatePlayerState("player-1", models.PlayerState_STATE_READY); err != nil {
+		t.Fatalf("Error updating player state: %v", err)
 	}
-	<-resultCh
 
 	// Player2 stays in CONNECTED state (set by addPlayerInternal)
 
@@ -480,12 +403,9 @@ func TestRemovePlayer(t *testing.T) {
 		player := createTestPlayer("player-" + string(rune('1'+i)))
 		player.State = models.PlayerState_STATE_CONNECTED
 
-		resultCh := make(chan error)
-		session.addPlayerCh <- &addPlayerCmd{
-			player:   player,
-			resultCh: resultCh,
+		if err := session.AddPlayer(player); err != nil {
+			t.Fatalf("Error adding player: %v", err)
 		}
-		<-resultCh
 	}
 
 	// Verify 2 players exist
@@ -495,13 +415,7 @@ func TestRemovePlayer(t *testing.T) {
 	}
 
 	// Remove one player
-	removeResultCh := make(chan error)
-	session.removePlayerCh <- &removePlayerCmd{
-		playerID: "player-1",
-		resultCh: removeResultCh,
-	}
-	err := <-removeResultCh
-	if err != nil {
+	if err := session.ReleasePlayer("player-1"); err != nil {
 		t.Errorf("Expected no error removing player, got %v", err)
 	}
 
@@ -526,21 +440,12 @@ func TestRemoveLastPlayerMarksSessionDone(t *testing.T) {
 	player := createTestPlayer("player-1")
 	player.State = models.PlayerState_STATE_CONNECTED
 
-	addResultCh := make(chan error)
-	session.addPlayerCh <- &addPlayerCmd{
-		player:   player,
-		resultCh: addResultCh,
+	if err := session.AddPlayer(player); err != nil {
+		t.Fatalf("Error adding player: %v", err)
 	}
-	<-addResultCh
 
 	// Remove the player
-	removeResultCh := make(chan error)
-	session.removePlayerCh <- &removePlayerCmd{
-		playerID: "player-1",
-		resultCh: removeResultCh,
-	}
-	err := <-removeResultCh
-	if err != nil {
+	if err := session.ReleasePlayer("player-1"); err != nil {
 		t.Errorf("Expected no error removing player, got %v", err)
 	}
 
@@ -582,24 +487,17 @@ func TestGetSessionData(t *testing.T) {
 	player2.Y = 10
 	player2.Direction = models.Direction_DIRECTION_DOWN
 
-	// Add players via actor channel
+	// Add players via the public API
 	for _, p := range []*Player{player1, player2} {
-		resultCh := make(chan error)
-		session.addPlayerCh <- &addPlayerCmd{
-			player:   p,
-			resultCh: resultCh,
+		if err := session.AddPlayer(p); err != nil {
+			t.Fatalf("Error adding player: %v", err)
 		}
-		<-resultCh
 	}
 
 	// Update player2 state to READY
-	updateResultCh := make(chan error)
-	session.updateStateCh <- &updatePlayerStateCmd{
-		playerID: "player-2",
-		state:    models.PlayerState_STATE_READY,
-		resultCh: updateResultCh,
+	if err := session.UpdatePlayerState("player-2", models.PlayerState_STATE_READY); err != nil {
+		t.Fatalf("Error updating player state: %v", err)
 	}
-	<-updateResultCh
 
 	// Create test entities and add to session
 	entity1 := NewEntity("player-1", models.EntityType_ENTITY_TYPE_BODY, Location{X: 5, Y: 5})
@@ -747,12 +645,9 @@ func TestGetSessionDataWithWinningPlayer(t *testing.T) {
 	player := createTestPlayer("player-1")
 	player.State = models.PlayerState_STATE_DONE
 
-	resultCh := make(chan error)
-	session.addPlayerCh <- &addPlayerCmd{
-		player:   player,
-		resultCh: resultCh,
+	if err := session.AddPlayer(player); err != nil {
+		t.Fatalf("Error adding player: %v", err)
 	}
-	<-resultCh
 
 	// Call GetSessionData
 	data := session.GetSessionData(nil, []*Entity{})

@@ -1,8 +1,6 @@
 # Before we do the golang backend. build the front end app
 FROM node:latest AS frontend
 
-EXPOSE 443
-
 WORKDIR /app/snake-client
 
 COPY snake-client/package.json snake-client/package-lock.json ./
@@ -13,18 +11,25 @@ COPY snake-client ./
 RUN npm run build
 
 # Building the Go server
-FROM golang:1.25-alpine AS backend
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app/snake-server
 
 COPY /snake-server ./
 
-RUN go build -o ./bin/server ./cmd/main.go
+# CGO_ENABLED=0 for a fully static binary, so the final image doesn't need to match glibc/musl
+RUN CGO_ENABLED=0 go build -o ./bin/server ./cmd/main.go
+
+# Final image only needs the compiled binary, the images the server reads at runtime, and the built frontend, not the Go toolchain or source tree
+FROM alpine:latest
+
+WORKDIR /app/snake-server/bin
+
+COPY --from=builder /app/snake-server/bin/server ./server
+COPY --from=builder /app/snake-server/images /app/snake-server/images
 
 # /dist folder with frontend app needs to be placed where the server can host it
-COPY --from=frontend /app/snake-client/dist /app/snake-server/bin/dist
+COPY --from=frontend /app/snake-client/dist ./dist
 
-# Server wants to access images in the ./images folder, set the workdir explicitly
-WORKDIR /app/snake-server/bin
+EXPOSE 443
 ENTRYPOINT ["./server"]
-

@@ -5,7 +5,7 @@ import { Snake, Tuple, Entity } from "./snake";
 // import.meta.env.DEV is set by Vite: true when running "npm run dev", false for "npm run build"
 const connectionString = import.meta.env.DEV
   ? "ws://localhost:443/ws"
-  : "wss://snake-online.mannymakes.ca/ws";
+  : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`;
 export const SessionState = Object.freeze({
   UNKNOWN: 0,
   CONNECTING: 1,

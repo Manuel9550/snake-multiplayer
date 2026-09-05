@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -17,10 +18,11 @@ const frontEndDirectory = "./dist"
 const testEnv = "TEST_ENV"
 
 // Upgrader is used to upgrade HTTP connections to WebSocket connections.
+// Only allow same-origin connections, since this server always hosts its own frontend - this works regardless of which domain it's actually deployed to.
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-		return origin == "https://snake-online.mannymakes.ca"
+		originURL, err := url.Parse(r.Header.Get("Origin"))
+		return err == nil && originURL.Host == r.Host
 	},
 }
 

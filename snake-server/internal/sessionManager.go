@@ -44,6 +44,7 @@ func (s *SessionManager) HandleConnection(upgrader *websocket.Upgrader) http.Han
 			err := sessionToAddPlayerTo.AddPlayer(newPlayer)
 			if err != nil {
 				s.logger.Printf("Error upgrading: %s\n", err.Error())
+				conn.Close()
 			}
 			return
 		}
@@ -53,6 +54,8 @@ func (s *SessionManager) HandleConnection(upgrader *websocket.Upgrader) http.Han
 		err = newSession.AddPlayer(newPlayer)
 		if err != nil {
 			s.logger.Printf("Error adding player to session: %s\n", err.Error())
+			conn.Close()
+			newSession.Discard()
 			return
 		}
 
