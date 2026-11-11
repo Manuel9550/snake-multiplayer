@@ -4,4 +4,4 @@ Try it out at https://snake-online.mannymakes.ca/
 
 Once multiple people are ready in the lobby, the game begins.
 
-Collect dots to increase your score, and the last one standing win.
+Collect dots to increase your score, and the last one standing wins.
